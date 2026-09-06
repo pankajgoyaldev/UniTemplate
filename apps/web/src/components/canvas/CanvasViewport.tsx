@@ -235,3 +235,4 @@ export const CanvasViewport: React.FC = () => {
     </div>
   );
 };
+

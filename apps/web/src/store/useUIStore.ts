@@ -108,3 +108,4 @@ export const useUIStore = create<UIState>((set, get) => ({
     get().zoomAtPoint(1.0, center);
   },
 }));
+

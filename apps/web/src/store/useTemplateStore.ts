@@ -47,3 +47,4 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       },
     })),
 }));
+

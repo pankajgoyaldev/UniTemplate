@@ -62,3 +62,4 @@ export const StatusBar: React.FC = () => {
     </footer>
   );
 };
+
