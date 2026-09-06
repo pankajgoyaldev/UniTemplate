@@ -2,9 +2,10 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   screenToCanvas,
   hitTestElements,
-  calculateSnappedDelta,
+  calculatePositionSnappedDelta,
   calculateResizedBounds,
   calculateMultiElementMove,
+  getElementWorldAnchor,
   type Point,
   type ElementBounds,
   type ResizeHandleType,
@@ -298,7 +299,10 @@ export const CanvasViewport: React.FC = () => {
           y: currentPointerMm.y - resizeStartPointerMm.current.y,
         };
 
-        const deltaMm = gridVisible ? calculateSnappedDelta(rawDeltaMm, gridSizeMm) : rawDeltaMm;
+        const referenceHandleMm = getElementWorldAnchor(resizeInitialBounds.current, activeHandle);
+        const deltaMm = gridVisible
+          ? calculatePositionSnappedDelta(referenceHandleMm, rawDeltaMm, gridSizeMm)
+          : rawDeltaMm;
 
         const newBounds = calculateResizedBounds({
           initialBounds: resizeInitialBounds.current,
@@ -320,12 +324,16 @@ export const CanvasViewport: React.FC = () => {
           y: currentPointerMm.y - dragOriginPointerMm.current.y,
         };
 
-        const deltaMm = gridVisible ? calculateSnappedDelta(rawDeltaMm, gridSizeMm) : rawDeltaMm;
-
         const elementsToMove = Array.from(initialBoundsMap.current.entries()).map(([id, initialBounds]) => ({
           id,
           initialBounds,
         }));
+
+        // Reference anchor for position snapping: consistent group reference (first element's origin)
+        const referencePointMm = elementsToMove[0].initialBounds;
+        const deltaMm = gridVisible
+          ? calculatePositionSnappedDelta(referencePointMm, rawDeltaMm, gridSizeMm)
+          : rawDeltaMm;
 
         const moved = calculateMultiElementMove(
           elementsToMove,

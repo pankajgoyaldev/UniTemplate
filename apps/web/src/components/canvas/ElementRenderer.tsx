@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TemplateElement } from '@uts/core';
+import { DEFAULT_SCREEN_DPI, type TemplateElement } from '@uts/core';
 import {
   renderElement,
   type SvgElementDescriptor,
@@ -64,7 +64,7 @@ export const ElementRenderer: React.FC<ElementRendererProps> = ({
 }) => {
   const context: RenderContext = {
     zoom,
-    dpi: 96,
+    dpi: DEFAULT_SCREEN_DPI,
     assetResolver,
   };
 

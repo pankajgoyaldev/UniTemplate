@@ -3,9 +3,40 @@
  */
 
 import type { ElementBounds, Point } from './types.js';
+import { getElementRotatedAABB } from './handles.js';
+
+/**
+ * Snaps a target position to the physical millimeter grid and returns the effective delta
+ * from the reference position.
+ *
+ * Example:
+ *   initial x = 12mm, target = 14mm, grid = 5mm
+ *   snapped target = 15mm
+ *   effective delta = +3mm
+ */
+export function calculatePositionSnappedDelta(
+  referencePointMm: Point,
+  rawDeltaMm: Point,
+  gridSizeMm?: number,
+): Point {
+  if (!gridSizeMm || gridSizeMm <= 0) {
+    return rawDeltaMm;
+  }
+  const targetX = referencePointMm.x + rawDeltaMm.x;
+  const targetY = referencePointMm.y + rawDeltaMm.y;
+
+  const snappedX = Math.round(targetX / gridSizeMm) * gridSizeMm;
+  const snappedY = Math.round(targetY / gridSizeMm) * gridSizeMm;
+
+  return {
+    x: snappedX - referencePointMm.x,
+    y: snappedY - referencePointMm.y,
+  };
+}
 
 /**
  * Snaps a delta displacement to the physical millimeter grid.
+ * @deprecated Prefer calculatePositionSnappedDelta for position-accurate grid alignment.
  */
 export function calculateSnappedDelta(deltaMm: Point, gridSizeMm?: number): Point {
   if (!gridSizeMm || gridSizeMm <= 0) {
@@ -19,6 +50,7 @@ export function calculateSnappedDelta(deltaMm: Point, gridSizeMm?: number): Poin
 
 /**
  * Calculates new bounds for an element after translation, clamping strictly within page boundaries.
+ * Accurately considers the full rotated visual geometry so no part of the element exceeds page bounds.
  * Preserves dimensions and rotation.
  */
 export function calculateMovedBounds(
@@ -27,24 +59,27 @@ export function calculateMovedBounds(
   pageWidthMm: number,
   pageHeightMm: number,
 ): ElementBounds {
-  const minX = 0;
-  const maxX = Math.max(0, pageWidthMm - initialBounds.width);
-  const clampedX = Math.min(maxX, Math.max(minX, initialBounds.x + deltaMm.x));
+  const aabb = getElementRotatedAABB(initialBounds);
 
-  const minY = 0;
-  const maxY = Math.max(0, pageHeightMm - initialBounds.height);
-  const clampedY = Math.min(maxY, Math.max(minY, initialBounds.y + deltaMm.y));
+  const minDeltaX = -aabb.x;
+  const maxDeltaX = Math.max(minDeltaX, pageWidthMm - (aabb.x + aabb.width));
+  const clampedDeltaX = Math.min(maxDeltaX, Math.max(minDeltaX, deltaMm.x));
+
+  const minDeltaY = -aabb.y;
+  const maxDeltaY = Math.max(minDeltaY, pageHeightMm - (aabb.y + aabb.height));
+  const clampedDeltaY = Math.min(maxDeltaY, Math.max(minDeltaY, deltaMm.y));
 
   return {
     ...initialBounds,
-    x: clampedX,
-    y: clampedY,
+    x: initialBounds.x + clampedDeltaX,
+    y: initialBounds.y + clampedDeltaY,
   };
 }
 
 /**
  * Calculates group movement for multiple selected elements, clamping the collective
- * translation so no element leaves the page boundaries and preserving relative positions.
+ * translation so no element leaves the page boundaries and preserving exact relative positions.
+ * Considers rotated bounds for each element.
  */
 export function calculateMultiElementMove(
   elements: { id: string; initialBounds: ElementBounds }[],
@@ -61,13 +96,12 @@ export function calculateMultiElementMove(
   let maxDeltaY = Infinity;
 
   for (const item of elements) {
-    const { x, y, width, height } = item.initialBounds;
+    const aabb = getElementRotatedAABB(item.initialBounds);
 
-    // Element must stay >= 0 and <= page
-    const allowedMinX = -x;
-    const allowedMaxX = Math.max(0, pageWidthMm - (x + width));
-    const allowedMinY = -y;
-    const allowedMaxY = Math.max(0, pageHeightMm - (y + height));
+    const allowedMinX = -aabb.x;
+    const allowedMaxX = Math.max(allowedMinX, pageWidthMm - (aabb.x + aabb.width));
+    const allowedMinY = -aabb.y;
+    const allowedMaxY = Math.max(allowedMinY, pageHeightMm - (aabb.y + aabb.height));
 
     minDeltaX = Math.max(minDeltaX, allowedMinX);
     maxDeltaX = Math.min(maxDeltaX, allowedMaxX);

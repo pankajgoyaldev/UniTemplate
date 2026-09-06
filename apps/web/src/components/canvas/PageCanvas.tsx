@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { mmToPx, type PageSettings, type TemplateElement } from '@uts/core';
+import { mmToPx, DEFAULT_SCREEN_DPI, type PageSettings, type TemplateElement } from '@uts/core';
 import type { ResizeHandleType } from '@uts/canvas-engine';
 import { ElementRenderer } from './ElementRenderer.js';
 import { SelectionOverlay } from './SelectionOverlay.js';
@@ -31,22 +31,22 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
 }) => {
   const { width: widthMm, height: heightMm, margins } = pageSettings;
 
-  // Base dimensions in CSS screen pixels at 1.0x zoom (96 DPI)
-  const baseWidthPx = mmToPx(widthMm, 96);
-  const baseHeightPx = mmToPx(heightMm, 96);
+  // Base dimensions in CSS screen pixels at 1.0x zoom (DEFAULT_SCREEN_DPI)
+  const baseWidthPx = mmToPx(widthMm, DEFAULT_SCREEN_DPI);
+  const baseHeightPx = mmToPx(heightMm, DEFAULT_SCREEN_DPI);
 
   // Scaled dimensions under current zoom
   const scaledWidthPx = baseWidthPx * zoom;
   const scaledHeightPx = baseHeightPx * zoom;
 
   // Margins in screen pixels
-  const marginTopPx = mmToPx(margins.top, 96) * zoom;
-  const marginRightPx = mmToPx(margins.right, 96) * zoom;
-  const marginBottomPx = mmToPx(margins.bottom, 96) * zoom;
-  const marginLeftPx = mmToPx(margins.left, 96) * zoom;
+  const marginTopPx = mmToPx(margins.top, DEFAULT_SCREEN_DPI) * zoom;
+  const marginRightPx = mmToPx(margins.right, DEFAULT_SCREEN_DPI) * zoom;
+  const marginBottomPx = mmToPx(margins.bottom, DEFAULT_SCREEN_DPI) * zoom;
+  const marginLeftPx = mmToPx(margins.left, DEFAULT_SCREEN_DPI) * zoom;
 
   // Grid step in scaled pixels
-  const gridStepPx = mmToPx(gridSizeMm, 96) * zoom;
+  const gridStepPx = mmToPx(gridSizeMm, DEFAULT_SCREEN_DPI) * zoom;
 
   // Sort elements by zIndex ascending
   const sortedElements = useMemo(() => {

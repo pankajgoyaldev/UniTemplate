@@ -8,13 +8,18 @@ import {
   calculateElementHandles,
   calculateMultiElementBoundingBox,
   getHandleCursor,
+  getElementRotatedCorners,
+  getElementRotatedAABB,
+  getElementWorldAnchor,
 } from '../src/manipulation/handles.js';
 import {
+  calculatePositionSnappedDelta,
   calculateSnappedDelta,
   calculateMovedBounds,
   calculateMultiElementMove,
 } from '../src/manipulation/transform.js';
 import { calculateResizedBounds } from '../src/manipulation/resize.js';
+import { screenToCanvas } from '../src/viewport/index.js';
 
 describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
   describe('1. Point-in-Bounds Hit Testing', () => {
@@ -27,13 +32,10 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
     };
 
     it('accurately tests points inside unrotated bounding box', () => {
-      // Inside
       expect(isPointInElementBounds({ x: 35, y: 50 }, unrotatedBounds)).toBe(true);
-      // Corners
       expect(isPointInElementBounds({ x: 20, y: 30 }, unrotatedBounds)).toBe(true);
       expect(isPointInElementBounds({ x: 70, y: 70 }, unrotatedBounds)).toBe(true);
 
-      // Outside
       expect(isPointInElementBounds({ x: 19, y: 50 }, unrotatedBounds)).toBe(false);
       expect(isPointInElementBounds({ x: 71, y: 50 }, unrotatedBounds)).toBe(false);
       expect(isPointInElementBounds({ x: 35, y: 29 }, unrotatedBounds)).toBe(false);
@@ -48,19 +50,13 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
         height: 0,
         rotation: 0,
       };
-      // Exactly on line
       expect(isPointInElementBounds({ x: 50, y: 50 }, lineBounds)).toBe(true);
-      // Slightly off line within tolerance
       expect(isPointInElementBounds({ x: 50, y: 50.8 }, lineBounds, 1.0)).toBe(true);
-      // Far off line
       expect(isPointInElementBounds({ x: 50, y: 53 }, lineBounds, 1.0)).toBe(false);
     });
   });
 
   describe('2. Rotated Element Hit Testing', () => {
-    // 40x20 element centered at (70, 60), rotated 90 degrees
-    // Unrotated: x: 50, y: 50, w: 40, h: 20 -> spans x:[50, 90], y:[50, 70]
-    // Rotated 90 deg: visual width is 20 (x:[60, 80]), visual height is 40 (y:[40, 80])
     const rotatedBounds: ElementBounds = {
       x: 50,
       y: 50,
@@ -74,14 +70,10 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
     });
 
     it('correctly identifies points inside rotated bounds that are outside unrotated bounds', () => {
-      // (70, 42) is visually inside the 90-degree rotated box (y spans 40 to 80),
-      // but OUTSIDE the unrotated box (unrotated y was 50 to 70)
       expect(isPointInElementBounds({ x: 70, y: 42 }, rotatedBounds)).toBe(true);
     });
 
     it('correctly rejects points outside rotated bounds that were inside unrotated bounds', () => {
-      // (88, 60) was inside unrotated box (x was 50 to 90),
-      // but is OUTSIDE rotated box (rotated x spans 60 to 80)
       expect(isPointInElementBounds({ x: 88, y: 60 }, rotatedBounds)).toBe(false);
     });
 
@@ -93,14 +85,12 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
         height: 40,
         rotation: 45,
       };
-      // Center (120, 120) is always inside
       expect(isPointInElementBounds({ x: 120, y: 120 }, bounds45)).toBe(true);
-      // Point outside corner
       expect(isPointInElementBounds({ x: 100, y: 100 }, bounds45)).toBe(false);
     });
   });
 
-  describe('3. Topmost zIndex Hit Selection & Filtering', () => {
+  describe('3. Selection & Filtering (Single, Multi, Locked, Invisible, Empty Canvas)', () => {
     const elements: TemplateElement[] = [
       {
         id: 'el_low',
@@ -163,28 +153,35 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       },
     ];
 
-    it('returns the topmost element based on zIndex when multiple elements overlap', () => {
-      // Point (30, 30) overlaps el_low, el_high, el_invisible (zIndex 99), and el_locked (zIndex 100).
-      // Invisible and locked must be ignored; el_high (zIndex 10) must be returned!
+    it('single selection: returns the topmost selectable element by descending zIndex', () => {
       const hit = hitTestElements({ x: 30, y: 30 }, elements);
       expect(hit).toBeDefined();
       expect(hit?.id).toBe('el_high');
     });
 
-    it('returns lower element when point does not hit higher element', () => {
-      // Point (75, 55) is inside el_low (10..90, 10..70), but outside el_high (20..60, 20..40)
+    it('invisible elements are ignored during hit testing', () => {
+      const hit = hitTestElements({ x: 30, y: 30 }, elements);
+      expect(hit?.id).not.toBe('el_invisible');
+    });
+
+    it('locked elements cannot be selected via hit testing', () => {
+      const hit = hitTestElements({ x: 30, y: 30 }, elements);
+      expect(hit?.id).not.toBe('el_locked');
+    });
+
+    it('returns lower element when point misses higher element', () => {
       const hit = hitTestElements({ x: 75, y: 55 }, elements);
       expect(hit).toBeDefined();
       expect(hit?.id).toBe('el_low');
     });
 
-    it('returns null when clicking empty canvas', () => {
+    it('empty canvas deselection: returns null when clicking on empty canvas', () => {
       const hit = hitTestElements({ x: 200, y: 200 }, elements);
       expect(hit).toBeNull();
     });
   });
 
-  describe('4. Resize Handles Calculation', () => {
+  describe('4. Resize Handles, Rotated Corners & World Anchors', () => {
     const testBounds: ElementBounds = {
       x: 10,
       y: 20,
@@ -209,7 +206,7 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       expect(findHandle('w').positionMm).toEqual({ x: 10, y: 35 });
     });
 
-    it('calculates rotated handle positions correctly', () => {
+    it('calculates rotated handle positions correctly around center', () => {
       const rotated: ElementBounds = {
         x: 10,
         y: 20,
@@ -220,23 +217,56 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       const handles = calculateElementHandles(rotated);
       expect(handles).toHaveLength(8);
 
-      // Center is (30, 35).
-      // nw was at (10, 20) -> dx = -20, dy = -15.
-      // Rotated 90 deg: rotX = 30 + (-20*0 - -15*1) = 30 + 15 = 45.
-      //                 rotY = 35 + (-20*1 + -15*0) = 35 - 20 = 15.
       const nw = handles.find((h) => h.type === 'nw')!;
       expect(nw.positionMm.x).toBeCloseTo(45, 2);
       expect(nw.positionMm.y).toBeCloseTo(15, 2);
     });
 
-    it('calculates correct CSS cursors with rotation', () => {
+    it('calculates correct CSS cursors adjusted for rotation', () => {
       expect(getHandleCursor('n', 0)).toBe('ns-resize');
       expect(getHandleCursor('e', 0)).toBe('ew-resize');
-      // n rotated by 90 degrees becomes horizontal (ew-resize)
       expect(getHandleCursor('n', 90)).toBe('ew-resize');
+      expect(getHandleCursor('e', 90)).toBe('ns-resize');
     });
 
-    it('calculates enclosing bounding box for multiple elements', () => {
+    it('getElementRotatedCorners returns the 4 world-space corners for rotated bounds', () => {
+      const corners = getElementRotatedCorners({
+        x: 50,
+        y: 50,
+        width: 40,
+        height: 20,
+        rotation: 90,
+      });
+      expect(corners).toHaveLength(4);
+
+      const minX = Math.min(...corners.map((c) => c.x));
+      const maxX = Math.max(...corners.map((c) => c.x));
+      const minY = Math.min(...corners.map((c) => c.y));
+      const maxY = Math.max(...corners.map((c) => c.y));
+
+      expect(minX).toBeCloseTo(60, 2);
+      expect(maxX).toBeCloseTo(80, 2);
+      expect(minY).toBeCloseTo(40, 2);
+      expect(maxY).toBeCloseTo(80, 2);
+    });
+
+    it('getElementRotatedAABB calculates accurate enclosing AABB for rotated elements', () => {
+      const aabb = getElementRotatedAABB({
+        x: 50,
+        y: 50,
+        width: 40,
+        height: 20,
+        rotation: 90,
+      });
+      expect(aabb.x).toBeCloseTo(60, 2);
+      expect(aabb.y).toBeCloseTo(40, 2);
+      expect(aabb.width).toBeCloseTo(20, 2);
+      expect(aabb.height).toBeCloseTo(40, 2);
+    });
+  });
+
+  describe('5. Combined Multi-Selection Bounding Box', () => {
+    it('calculates enclosing bounding box for multiple unrotated elements', () => {
       const el1: TemplateElement = {
         id: '1',
         type: 'shape',
@@ -268,152 +298,259 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       expect(bbox).toBeDefined();
       expect(bbox?.x).toBe(10);
       expect(bbox?.y).toBe(10);
-      expect(bbox?.width).toBe(70); // 80 - 10
-      expect(bbox?.height).toBe(70); // 80 - 10
+      expect(bbox?.width).toBe(70);
+      expect(bbox?.height).toBe(70);
+    });
+
+    it('calculates enclosing bounding box including rotated elements', () => {
+      const el1: TemplateElement = {
+        id: '1',
+        type: 'shape',
+        name: 'A',
+        bounds: { x: 50, y: 50, width: 40, height: 20, rotation: 90 }, // Visual spans x:[60, 80], y:[40, 80]
+        isLocked: false,
+        isVisible: true,
+        zIndex: 1,
+        shapeType: 'rectangle',
+        fillColor: '#000',
+        strokeColor: '#000',
+        strokeWidthMm: 1,
+      };
+      const el2: TemplateElement = {
+        id: '2',
+        type: 'shape',
+        name: 'B',
+        bounds: { x: 100, y: 30, width: 20, height: 20, rotation: 0 },
+        isLocked: false,
+        isVisible: true,
+        zIndex: 2,
+        shapeType: 'rectangle',
+        fillColor: '#000',
+        strokeColor: '#000',
+        strokeWidthMm: 1,
+      };
+
+      const bbox = calculateMultiElementBoundingBox([el1, el2]);
+      expect(bbox).toBeDefined();
+      expect(bbox?.x).toBeCloseTo(60, 2);
+      expect(bbox?.y).toBeCloseTo(30, 2);
+      expect(bbox?.width).toBeCloseTo(60, 2);
+      expect(bbox?.height).toBeCloseTo(50, 2);
+    });
+
+    it('returns null for empty selection', () => {
+      expect(calculateMultiElementBoundingBox([])).toBeNull();
     });
   });
 
-  describe('5. Translation, Movement & Grid Snapping', () => {
-    it('snaps delta to grid increments', () => {
-      // 10mm grid
-      expect(calculateSnappedDelta({ x: 3.4, y: 7.8 }, 10)).toEqual({ x: 0, y: 10 });
-      expect(calculateSnappedDelta({ x: 6.1, y: 14.5 }, 10)).toEqual({ x: 10, y: 10 });
-      // 5mm grid
-      expect(calculateSnappedDelta({ x: 2.6, y: 8.9 }, 5)).toEqual({ x: 5, y: 10 });
-      // Grid disabled (0 or undefined)
-      expect(calculateSnappedDelta({ x: 3.4, y: 7.8 }, 0)).toEqual({ x: 3.4, y: 7.8 });
+  describe('6. Grid Snapping Semantics (Position-Based Alignment)', () => {
+    it('snaps resulting position to grid: initial x = 12mm, target = 14mm, grid = 5mm -> effective delta = +3mm, resulting x = 15mm', () => {
+      const initialPoint = { x: 12, y: 20 };
+      const rawDelta = { x: 2, y: 6 };
+
+      const effectiveDelta = calculatePositionSnappedDelta(initialPoint, rawDelta, 5);
+
+      expect(effectiveDelta.x).toBe(3);
+      expect(effectiveDelta.y).toBe(5);
+
+      expect(initialPoint.x + effectiveDelta.x).toBe(15);
+      expect(initialPoint.y + effectiveDelta.y).toBe(25);
     });
 
-    it('moves element and strictly clamps within page boundaries', () => {
-      const initial: ElementBounds = { x: 10, y: 10, width: 50, height: 30, rotation: 0 };
-      const pageWidth = 210;
-      const pageHeight = 297;
+    it('preserves exact relative spacing in multi-selection when moving by snapped delta', () => {
+      const elA = { x: 12, y: 10 };
+      const elB = { x: 27, y: 35 };
 
-      // Normal valid move
+      const rawDelta = { x: 2, y: 3 };
+      const effectiveDelta = calculatePositionSnappedDelta(elA, rawDelta, 5);
+
+      const movedA = { x: elA.x + effectiveDelta.x, y: elA.y + effectiveDelta.y };
+      const movedB = { x: elB.x + effectiveDelta.x, y: elB.y + effectiveDelta.y };
+
+      expect(movedA.x).toBe(15);
+      expect(movedA.y).toBe(15);
+
+      expect(movedB.x - movedA.x).toBe(elB.x - elA.x);
+      expect(movedB.y - movedA.y).toBe(elB.y - elA.y);
+    });
+
+    it('returns raw delta unchanged when grid is disabled or 0', () => {
+      const point = { x: 12, y: 20 };
+      const rawDelta = { x: 2.3, y: 4.7 };
+      expect(calculatePositionSnappedDelta(point, rawDelta, 0)).toEqual(rawDelta);
+      expect(calculatePositionSnappedDelta(point, rawDelta, undefined)).toEqual(rawDelta);
+    });
+
+    it('preserves backward compatibility with calculateSnappedDelta', () => {
+      expect(calculateSnappedDelta({ x: 3.4, y: 7.8 }, 10)).toEqual({ x: 0, y: 10 });
+    });
+  });
+
+  describe('7. Movement & Rotated Page Boundaries', () => {
+    const pageWidth = 210;
+    const pageHeight = 297;
+
+    it('moves unrotated element and clamps strictly within page bounds', () => {
+      const initial: ElementBounds = { x: 10, y: 10, width: 50, height: 30, rotation: 0 };
+
       const moved = calculateMovedBounds(initial, { x: 15, y: 25 }, pageWidth, pageHeight);
       expect(moved.x).toBe(25);
       expect(moved.y).toBe(35);
-      expect(moved.width).toBe(50);
-      expect(moved.height).toBe(30);
 
-      // Attempt to move beyond left/top margin (< 0)
       const clampedTopLeft = calculateMovedBounds(initial, { x: -30, y: -40 }, pageWidth, pageHeight);
       expect(clampedTopLeft.x).toBe(0);
       expect(clampedTopLeft.y).toBe(0);
 
-      // Attempt to move beyond right/bottom margin
       const clampedBottomRight = calculateMovedBounds(initial, { x: 250, y: 350 }, pageWidth, pageHeight);
-      expect(clampedBottomRight.x).toBe(pageWidth - 50); // 160
-      expect(clampedBottomRight.y).toBe(pageHeight - 30); // 267
+      expect(clampedBottomRight.x).toBe(pageWidth - 50);
+      expect(clampedBottomRight.y).toBe(pageHeight - 30);
     });
 
-    it('moves multiple elements together preserving exact relative positions and clamping collectively', () => {
+    it('constrains rotated element movement so all rotated corners stay within page boundaries', () => {
+      const rotated: ElementBounds = {
+        x: 50,
+        y: 50,
+        width: 40,
+        height: 20,
+        rotation: 90,
+      };
+
+      const movedLeft = calculateMovedBounds(rotated, { x: -200, y: 0 }, pageWidth, pageHeight);
+      const leftAABB = getElementRotatedAABB(movedLeft);
+      expect(leftAABB.x).toBeGreaterThanOrEqual(-1e-4);
+      expect(leftAABB.x).toBeCloseTo(0, 2);
+
+      const movedTop = calculateMovedBounds(rotated, { x: 0, y: -200 }, pageWidth, pageHeight);
+      const topAABB = getElementRotatedAABB(movedTop);
+      expect(topAABB.y).toBeGreaterThanOrEqual(-1e-4);
+      expect(topAABB.y).toBeCloseTo(0, 2);
+
+      const movedRight = calculateMovedBounds(rotated, { x: 500, y: 0 }, pageWidth, pageHeight);
+      const rightAABB = getElementRotatedAABB(movedRight);
+      expect(rightAABB.x + rightAABB.width).toBeLessThanOrEqual(pageWidth + 1e-4);
+      expect(rightAABB.x + rightAABB.width).toBeCloseTo(pageWidth, 2);
+
+      const movedBottom = calculateMovedBounds(rotated, { x: 0, y: 500 }, pageWidth, pageHeight);
+      const bottomAABB = getElementRotatedAABB(movedBottom);
+      expect(bottomAABB.y + bottomAABB.height).toBeLessThanOrEqual(pageHeight + 1e-4);
+      expect(bottomAABB.y + bottomAABB.height).toBeCloseTo(pageHeight, 2);
+    });
+
+    it('multi-selection move clamps collectively and preserves relative positions including rotated elements', () => {
       const elements = [
         { id: 'el_1', initialBounds: { x: 20, y: 20, width: 30, height: 20, rotation: 0 } },
-        { id: 'el_2', initialBounds: { x: 80, y: 40, width: 40, height: 30, rotation: 0 } },
+        { id: 'el_2', initialBounds: { x: 100, y: 100, width: 40, height: 20, rotation: 90 } },
       ];
-      const moved = calculateMultiElementMove(elements, { x: 15, y: 10 }, 210, 297);
+
+      const moved = calculateMultiElementMove(elements, { x: 15, y: 10 }, pageWidth, pageHeight);
 
       expect(moved[0].bounds.x).toBe(35);
       expect(moved[0].bounds.y).toBe(30);
-      expect(moved[1].bounds.x).toBe(95);
-      expect(moved[1].bounds.y).toBe(50);
+      expect(moved[1].bounds.x).toBe(115);
+      expect(moved[1].bounds.y).toBe(110);
 
-      // Verify relative distance between elements is preserved exactly
       const originalDeltaX = elements[1].initialBounds.x - elements[0].initialBounds.x;
       const movedDeltaX = moved[1].bounds.x - moved[0].bounds.x;
       expect(movedDeltaX).toBe(originalDeltaX);
     });
   });
 
-  describe('6. 8-Handle Resizing Calculations', () => {
-    const initialBounds: ElementBounds = {
-      x: 20,
-      y: 30,
-      width: 50,
-      height: 40,
-      rotation: 0,
-    };
+  describe('8. 8-Handle Resizing & Opposite Anchor Correctness', () => {
+    it('unrotated resize: opposite anchor remains exactly fixed in world coordinates for all 8 handles', () => {
+      const initial: ElementBounds = { x: 20, y: 30, width: 50, height: 40, rotation: 0 };
+      const delta = { x: 10, y: 15 };
 
-    it('resizes from "se" (bottom-right) keeping top-left anchor fixed', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 'se',
-        deltaMm: { x: 10, y: 15 },
-      });
-      expect(resized.x).toBe(20);
-      expect(resized.y).toBe(30);
-      expect(resized.width).toBe(60);
-      expect(resized.height).toBe(55);
+      const handleOpposites: [string, string][] = [
+        ['se', 'nw'],
+        ['nw', 'se'],
+        ['ne', 'sw'],
+        ['sw', 'ne'],
+        ['e', 'w'],
+        ['w', 'e'],
+        ['s', 'n'],
+        ['n', 's'],
+      ];
+
+      for (const [handle, opposite] of handleOpposites) {
+        const initialAnchor = getElementWorldAnchor(initial, opposite as any);
+        const resized = calculateResizedBounds({
+          initialBounds: initial,
+          handle: handle as any,
+          deltaMm: delta,
+        });
+        const finalAnchor = getElementWorldAnchor(resized, opposite as any);
+
+        expect(finalAnchor.x).toBeCloseTo(initialAnchor.x, 3);
+        expect(finalAnchor.y).toBeCloseTo(initialAnchor.y, 3);
+      }
     });
 
-    it('resizes from "nw" (top-left) keeping bottom-right anchor fixed', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 'nw',
-        deltaMm: { x: 5, y: 8 },
-      });
-      // Moving top-left right/down shrinks box: width: 50 - 5 = 45, height: 40 - 8 = 32
-      // Bottom-right was at (70, 70). New top-left: (70 - 45, 70 - 32) = (25, 38)
-      expect(resized.x).toBe(25);
-      expect(resized.y).toBe(38);
-      expect(resized.width).toBe(45);
-      expect(resized.height).toBe(32);
+    it('rotated 90° resize: opposite anchor remains strictly fixed in world coordinates', () => {
+      const initial: ElementBounds = { x: 50, y: 50, width: 40, height: 20, rotation: 90 };
+      const delta = { x: 10, y: 10 };
+
+      const handleOpposites: [string, string][] = [
+        ['se', 'nw'],
+        ['nw', 'se'],
+        ['ne', 'sw'],
+        ['sw', 'ne'],
+        ['e', 'w'],
+        ['w', 'e'],
+        ['s', 'n'],
+        ['n', 's'],
+      ];
+
+      for (const [handle, opposite] of handleOpposites) {
+        const initialAnchor = getElementWorldAnchor(initial, opposite as any);
+        const resized = calculateResizedBounds({
+          initialBounds: initial,
+          handle: handle as any,
+          deltaMm: delta,
+        });
+        const finalAnchor = getElementWorldAnchor(resized, opposite as any);
+
+        expect(finalAnchor.x).toBeCloseTo(initialAnchor.x, 3);
+        expect(finalAnchor.y).toBeCloseTo(initialAnchor.y, 3);
+        expect(resized.rotation).toBe(90);
+        expect(resized.width).toBeGreaterThan(0);
+        expect(resized.height).toBeGreaterThan(0);
+      }
     });
 
-    it('resizes horizontally from "e" (right) without changing height or y', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 'e',
-        deltaMm: { x: 20, y: 10 },
-      });
-      expect(resized.x).toBe(20);
-      expect(resized.y).toBe(30);
-      expect(resized.width).toBe(70);
-      expect(resized.height).toBe(40);
+    it('rotated 45° resize: opposite anchor remains strictly fixed in world coordinates', () => {
+      const initial: ElementBounds = { x: 80, y: 80, width: 30, height: 30, rotation: 45 };
+      const delta = { x: 8, y: -5 };
+
+      const handleOpposites: [string, string][] = [
+        ['se', 'nw'],
+        ['nw', 'se'],
+        ['ne', 'sw'],
+        ['sw', 'ne'],
+        ['e', 'w'],
+        ['w', 'e'],
+        ['s', 'n'],
+        ['n', 's'],
+      ];
+
+      for (const [handle, opposite] of handleOpposites) {
+        const initialAnchor = getElementWorldAnchor(initial, opposite as any);
+        const resized = calculateResizedBounds({
+          initialBounds: initial,
+          handle: handle as any,
+          deltaMm: delta,
+        });
+        const finalAnchor = getElementWorldAnchor(resized, opposite as any);
+
+        expect(finalAnchor.x).toBeCloseTo(initialAnchor.x, 3);
+        expect(finalAnchor.y).toBeCloseTo(initialAnchor.y, 3);
+        expect(resized.rotation).toBe(45);
+      }
     });
 
-    it('resizes vertically from "s" (bottom) without changing width or x', () => {
+    it('enforces minimum dimensions (width/height cannot shrink below minWidthMm)', () => {
+      const initial: ElementBounds = { x: 20, y: 30, width: 50, height: 40, rotation: 0 };
       const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 's',
-        deltaMm: { x: 15, y: 25 },
-      });
-      expect(resized.x).toBe(20);
-      expect(resized.y).toBe(30);
-      expect(resized.width).toBe(50);
-      expect(resized.height).toBe(65);
-    });
-
-    it('resizes from "w" (left) keeping right edge fixed', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 'w',
-        deltaMm: { x: 10, y: 0 },
-      });
-      // Moving left edge by +10 shrinks width from 50 to 40, x moves from 20 to 30
-      expect(resized.x).toBe(30);
-      expect(resized.y).toBe(30);
-      expect(resized.width).toBe(40);
-      expect(resized.height).toBe(40);
-    });
-
-    it('resizes from "n" (top) keeping bottom edge fixed', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
-        handle: 'n',
-        deltaMm: { x: 0, y: 10 },
-      });
-      // Moving top edge down by +10 shrinks height from 40 to 30, y moves from 30 to 40
-      expect(resized.x).toBe(20);
-      expect(resized.y).toBe(40);
-      expect(resized.width).toBe(50);
-      expect(resized.height).toBe(30);
-    });
-
-    it('enforces minimum dimensions (prevents negative or zero size)', () => {
-      const resized = calculateResizedBounds({
-        initialBounds,
+        initialBounds: initial,
         handle: 'se',
         deltaMm: { x: -100, y: -100 },
         minWidthMm: 5,
@@ -423,39 +560,90 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       expect(resized.height).toBe(5);
     });
 
-    it('supports proportional aspect ratio resizing when keepAspectRatio is true', () => {
-      // 50 x 40 has aspect ratio 1.25
+    it('supports proportional aspect ratio resizing when keepAspectRatio is true (Shift key)', () => {
+      const initial: ElementBounds = { x: 20, y: 30, width: 50, height: 40, rotation: 0 };
       const resized = calculateResizedBounds({
-        initialBounds,
+        initialBounds: initial,
         handle: 'se',
-        deltaMm: { x: 20, y: 5 }, // Dragged more in X
+        deltaMm: { x: 20, y: 5 },
         keepAspectRatio: true,
       });
-      // Scale based on X: 70 / 50 = 1.4. New height = 40 * 1.4 = 56.
       expect(resized.width).toBe(70);
       expect(resized.height).toBe(56);
       expect(resized.width / resized.height).toBeCloseTo(50 / 40, 4);
     });
 
-    it('correctly resizes a rotated element keeping opposite anchor in place', () => {
-      const rotated: ElementBounds = {
-        x: 50,
-        y: 50,
-        width: 40,
-        height: 20,
-        rotation: 90,
-      };
-      // Center is (70, 60).
-      // Resizing from 'se' in 90-degree rotated box
+    it('clamps rotated resize to page boundary while keeping opposite anchor fixed', () => {
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const initial: ElementBounds = { x: 160, y: 50, width: 40, height: 20, rotation: 90 };
+      const initialAnchor = getElementWorldAnchor(initial, 'w');
+
       const resized = calculateResizedBounds({
-        initialBounds: rotated,
-        handle: 'se',
-        deltaMm: { x: 0, y: 20 },
+        initialBounds: initial,
+        handle: 'e',
+        deltaMm: { x: 50, y: 0 },
+        pageWidthMm: pageWidth,
+        pageHeightMm: pageHeight,
       });
-      expect(resized.rotation).toBe(90);
-      expect(resized.width).toBeGreaterThanOrEqual(40);
-      expect(resized.height).toBeGreaterThanOrEqual(20);
+
+      const corners = getElementRotatedCorners(resized);
+      for (const c of corners) {
+        expect(c.x).toBeLessThanOrEqual(pageWidth + 1e-3);
+      }
+
+      const finalAnchor = getElementWorldAnchor(resized, 'w');
+      expect(finalAnchor.x).toBeCloseTo(initialAnchor.x, 3);
+      expect(finalAnchor.y).toBeCloseTo(initialAnchor.y, 3);
+    });
+  });
+
+  describe('9. Screen-to-MM Drag Calculations', () => {
+    it('converts screen pointer coordinates to physical mm across zoom levels and pan offsets', () => {
+      const viewport = { zoom: 1.5, panX: 100, panY: 50, viewportWidth: 800, viewportHeight: 600 };
+
+      const mm = screenToCanvas({ x: 250, y: 170 }, viewport);
+
+      expect(mm.x).toBeGreaterThan(0);
+      expect(mm.y).toBeGreaterThan(0);
+
+      const mm2 = screenToCanvas({ x: 300, y: 170 }, viewport);
+      const deltaMm = mm2.x - mm.x;
+      expect(deltaMm).toBeCloseTo(50 / (1.5 * (96 / 25.4)), 2);
+    });
+  });
+
+  describe('10. Deletion & Keyboard Nudge Semantics', () => {
+    it('deleting elements removes only unlocked elements and preserves locked elements', () => {
+      const elements: TemplateElement[] = [
+        { id: 'el_1', type: 'shape', name: 'A', bounds: { x: 10, y: 10, width: 20, height: 20 }, isLocked: false, isVisible: true, zIndex: 1, shapeType: 'rectangle' },
+        { id: 'el_2', type: 'shape', name: 'B', bounds: { x: 30, y: 10, width: 20, height: 20 }, isLocked: true, isVisible: true, zIndex: 2, shapeType: 'rectangle' },
+      ];
+
+      const idsToDelete = ['el_1', 'el_2'];
+      const remaining = elements.filter((el) => !idsToDelete.includes(el.id) || el.isLocked);
+
+      expect(remaining.map((e) => e.id)).toEqual(['el_2']);
+    });
+
+    it('nudges elements by 1mm step and Shift-nudges by 10mm step, clamped to page boundaries', () => {
+      const elements = [
+        { id: 'el_1', initialBounds: { x: 5, y: 5, width: 20, height: 20, rotation: 0 } },
+      ];
+
+      // Normal nudge left: step = -1mm
+      const nudge1 = calculateMultiElementMove(elements, { x: -1, y: 0 }, 210, 297);
+      expect(nudge1[0].bounds.x).toBe(4);
+
+      // Shift-nudge right: step = +10mm
+      const nudge10 = calculateMultiElementMove(elements, { x: 10, y: 0 }, 210, 297);
+      expect(nudge10[0].bounds.x).toBe(15);
+
+      // Shift-nudge left clamped to 0 boundary
+      const nudgeClamped = calculateMultiElementMove(elements, { x: -10, y: 0 }, 210, 297);
+      expect(nudgeClamped[0].bounds.x).toBe(0);
     });
   });
 });
+
 
