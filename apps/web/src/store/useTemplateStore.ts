@@ -8,10 +8,14 @@ interface TemplateState {
   setTemplate: (template: TemplateAst) => void;
   updatePageSettings: (settings: Partial<PageSettings>) => void;
   addElement: (element: TemplateElement) => void;
+  updateElement: (id: string, patch: Partial<TemplateElement>) => void;
+  updateElements: (ids: string[], patch: Partial<TemplateElement>) => void;
   updateElementBounds: (id: string, bounds: ElementBounds) => void;
   updateMultipleElementBounds: (updates: { id: string; bounds: ElementBounds }[]) => void;
   deleteElements: (ids: string[]) => void;
   nudgeElements: (ids: string[], deltaMm: Point, pageWidthMm: number, pageHeightMm: number) => void;
+  toggleElementLock: (id: string) => void;
+  toggleElementVisibility: (id: string) => void;
 }
 
 // Inline sample SVG logo for instant out-of-the-box rendering
@@ -182,6 +186,49 @@ const DEFAULT_A4_TEMPLATE: TemplateAst = {
   ],
 };
 
+function patchElement(el: TemplateElement, patch: Partial<TemplateElement>): TemplateElement {
+  const updatedBounds = patch.bounds ? { ...el.bounds, ...patch.bounds } : el.bounds;
+
+  switch (el.type) {
+    case 'text': {
+      const textPatch = patch as Partial<typeof el>;
+      return {
+        ...el,
+        ...patch,
+        bounds: updatedBounds,
+        style: textPatch.style ? { ...el.style, ...textPatch.style } : el.style,
+        type: 'text',
+      };
+    }
+    case 'shape': {
+      return {
+        ...el,
+        ...patch,
+        bounds: updatedBounds,
+        type: 'shape',
+      };
+    }
+    case 'image': {
+      return {
+        ...el,
+        ...patch,
+        bounds: updatedBounds,
+        type: 'image',
+      };
+    }
+    case 'barcode': {
+      return {
+        ...el,
+        ...patch,
+        bounds: updatedBounds,
+        type: 'barcode',
+      };
+    }
+    default:
+      return el;
+  }
+}
+
 export const useTemplateStore = create<TemplateState>((set) => ({
   template: DEFAULT_A4_TEMPLATE,
 
@@ -206,12 +253,44 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       },
     })),
 
+  updateElement: (id, patch) =>
+    set((state) => ({
+      template: {
+        ...state.template,
+        elements: state.template.elements.map((el) => {
+          if (el.id !== id) return el;
+          if (el.isLocked) {
+            // Locked elements cannot be modified, except unlocking
+            if (patch.isLocked === false) {
+              return { ...el, isLocked: false };
+            }
+            return el;
+          }
+          return patchElement(el, patch);
+        }),
+      },
+    })),
+
+  updateElements: (ids, patch) =>
+    set((state) => {
+      const idSet = new Set(ids);
+      return {
+        template: {
+          ...state.template,
+          elements: state.template.elements.map((el) => {
+            if (!idSet.has(el.id) || el.isLocked) return el;
+            return patchElement(el, patch);
+          }),
+        },
+      };
+    }),
+
   updateElementBounds: (id, bounds) =>
     set((state) => ({
       template: {
         ...state.template,
         elements: state.template.elements.map((el) =>
-          el.id === id ? { ...el, bounds: { ...bounds } } : el,
+          el.id === id && !el.isLocked ? { ...el, bounds: { ...bounds } } : el,
         ),
       },
     })),
@@ -224,11 +303,31 @@ export const useTemplateStore = create<TemplateState>((set) => ({
           ...state.template,
           elements: state.template.elements.map((el) => {
             const newBounds = updateMap.get(el.id);
-            return newBounds ? { ...el, bounds: { ...newBounds } } : el;
+            return newBounds && !el.isLocked ? { ...el, bounds: { ...newBounds } } : el;
           }),
         },
       };
     }),
+
+  toggleElementLock: (id) =>
+    set((state) => ({
+      template: {
+        ...state.template,
+        elements: state.template.elements.map((el) =>
+          el.id === id ? { ...el, isLocked: !el.isLocked } : el,
+        ),
+      },
+    })),
+
+  toggleElementVisibility: (id) =>
+    set((state) => ({
+      template: {
+        ...state.template,
+        elements: state.template.elements.map((el) =>
+          el.id === id && !el.isLocked ? { ...el, isVisible: !el.isVisible } : el,
+        ),
+      },
+    })),
 
   deleteElements: (ids) =>
     set((state) => ({
