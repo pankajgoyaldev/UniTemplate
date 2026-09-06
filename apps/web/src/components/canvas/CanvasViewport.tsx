@@ -1,0 +1,237 @@
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { screenToCanvas, type Point } from '@uts/canvas-engine';
+import { useUIStore } from '../../store/useUIStore.js';
+import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { HorizontalRuler, VerticalRuler, RulerCorner, RULER_THICKNESS } from './MetricRuler.js';
+import { PageCanvas } from './PageCanvas.js';
+
+export const CanvasViewport: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // UI Store
+  const zoom = useUIStore((s) => s.zoom);
+  const panX = useUIStore((s) => s.panX);
+  const panY = useUIStore((s) => s.panY);
+  const activeTool = useUIStore((s) => s.activeTool);
+  const isSpacePressed = useUIStore((s) => s.isSpacePressed);
+  const isDragging = useUIStore((s) => s.isDragging);
+  const gridVisible = useUIStore((s) => s.gridVisible);
+  const gridSizeMm = useUIStore((s) => s.gridSizeMm);
+  const panBy = useUIStore((s) => s.panBy);
+  const zoomAtPoint = useUIStore((s) => s.zoomAtPoint);
+  const setViewportSize = useUIStore((s) => s.setViewportSize);
+  const setIsSpacePressed = useUIStore((s) => s.setIsSpacePressed);
+  const setIsDragging = useUIStore((s) => s.setIsDragging);
+  const setCursorPosMm = useUIStore((s) => s.setCursorPosMm);
+  const fitToScreen = useUIStore((s) => s.fitToScreen);
+
+  // Template Store
+  const pageSettings = useTemplateStore((s) => s.template.pageSettings);
+
+  // Local drag tracking
+  const [dragStart, setDragStart] = useState<Point | null>(null);
+  const [cursorScreenPx, setCursorScreenPx] = useState<Point | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
+  const hasInitializedFit = useRef(false);
+
+  // Resize observer to track viewport dimensions
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const width = entry.contentRect.width - RULER_THICKNESS;
+        const height = entry.contentRect.height - RULER_THICKNESS;
+        setContainerSize({ width, height });
+        setViewportSize(width, height);
+
+        // Auto-center template on initial load
+        if (!hasInitializedFit.current && width > 200 && height > 200) {
+          hasInitializedFit.current = true;
+          fitToScreen(pageSettings.width, pageSettings.height);
+        }
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [setViewportSize, fitToScreen, pageSettings.width, pageSettings.height]);
+
+  // Spacebar hotkey detection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && (e.target as HTMLElement)?.tagName !== 'INPUT') {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [setIsSpacePressed]);
+
+  // Wheel zoom handler
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left - RULER_THICKNESS;
+      const mouseY = e.clientY - rect.top - RULER_THICKNESS;
+
+      // Sensitivity factor
+      const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+      const targetZoom = zoom * zoomFactor;
+
+      zoomAtPoint(targetZoom, { x: mouseX, y: mouseY });
+    },
+    [zoom, zoomAtPoint],
+  );
+
+  // Mouse Down: Start Pan if middle button or Space key or 'hand' tool
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      const isMiddleClick = e.button === 1;
+      const isLeftClickWithSpaceOrHand = e.button === 0 && (isSpacePressed || activeTool === 'hand');
+
+      if (isMiddleClick || isLeftClickWithSpaceOrHand) {
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+    },
+    [isSpacePressed, activeTool, setIsDragging],
+  );
+
+  // Mouse Move: Pan delta and coordinate tracking
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const screenX = e.clientX - rect.left - RULER_THICKNESS;
+      const screenY = e.clientY - rect.top - RULER_THICKNESS;
+
+      setCursorScreenPx({ x: screenX, y: screenY });
+
+      // Live update physical millimeter coordinates in store
+      const canvasMm = screenToCanvas({ x: screenX, y: screenY }, { zoom, panX, panY });
+      setCursorPosMm(canvasMm);
+
+      // Pan handling
+      if (isDragging && dragStart) {
+        const deltaX = e.clientX - dragStart.x;
+        const deltaY = e.clientY - dragStart.y;
+        panBy({ x: deltaX, y: deltaY });
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+    },
+    [isDragging, dragStart, zoom, panX, panY, panBy, setCursorPosMm],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setDragStart(null);
+  }, [setIsDragging]);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsDragging(false);
+    setDragStart(null);
+    setCursorScreenPx(null);
+    setCursorPosMm(null);
+  }, [setIsDragging, setCursorPosMm]);
+
+  // Determine cursor styling
+  let cursorClass = 'cursor-default';
+  if (isDragging) {
+    cursorClass = 'cursor-grabbing';
+  } else if (isSpacePressed || activeTool === 'hand') {
+    cursorClass = 'cursor-grab';
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full overflow-hidden bg-studio-canvas ${cursorClass}`}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* 1. Corner Square */}
+      <RulerCorner />
+
+      {/* 2. Horizontal Ruler (Top) */}
+      <div
+        className="absolute top-0 z-10 overflow-hidden"
+        style={{ left: RULER_THICKNESS, right: 0, height: RULER_THICKNESS }}
+      >
+        <HorizontalRuler
+          panX={panX}
+          zoom={zoom}
+          width={containerSize.width}
+          cursorPosScreen={cursorScreenPx}
+        />
+      </div>
+
+      {/* 3. Vertical Ruler (Left) */}
+      <div
+        className="absolute left-0 z-10 overflow-hidden"
+        style={{ top: RULER_THICKNESS, bottom: 0, width: RULER_THICKNESS }}
+      >
+        <VerticalRuler
+          panY={panY}
+          zoom={zoom}
+          height={containerSize.height}
+          cursorPosScreen={cursorScreenPx}
+        />
+      </div>
+
+      {/* 4. Infinite Workspace Surface & Page Viewport */}
+      <div
+        className="absolute overflow-hidden"
+        style={{
+          top: RULER_THICKNESS,
+          left: RULER_THICKNESS,
+          width: containerSize.width,
+          height: containerSize.height,
+        }}
+      >
+        {/* Workspace Canvas Background Pattern */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-20"
+          style={{
+            backgroundImage: `radial-gradient(#52525b 1px, transparent 1px)`,
+            backgroundSize: '20px 20px',
+          }}
+        />
+
+        {/* Scaled & Translated Physical Page */}
+        <PageCanvas
+          pageSettings={pageSettings}
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
+          gridVisible={gridVisible}
+          gridSizeMm={gridSizeMm}
+        />
+      </div>
+    </div>
+  );
+};

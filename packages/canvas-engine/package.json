@@ -1,0 +1,19 @@
+{
+  "name": "@uts/canvas-engine",
+  "version": "1.0.0",
+  "description": "Universe Template Studio Canvas Engine - Viewport math, coordinate transformations, rulers, snapping",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "node ../core/node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ../core/node_modules/vitest/vitest.mjs"
+  },
+  "dependencies": {
+    "@uts/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "typescript": "^5.5.4"
+  }
+}
