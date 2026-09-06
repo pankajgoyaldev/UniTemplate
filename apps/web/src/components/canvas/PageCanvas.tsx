@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { mmToPx, type PageSettings, type TemplateElement } from '@uts/core';
+import type { ResizeHandleType } from '@uts/canvas-engine';
 import { ElementRenderer } from './ElementRenderer.js';
+import { SelectionOverlay } from './SelectionOverlay.js';
 
 interface PageCanvasProps {
   pageSettings: PageSettings;
@@ -11,6 +13,8 @@ interface PageCanvasProps {
   gridVisible: boolean;
   gridSizeMm: 5 | 10;
   assetResolver?: (assetRef: string) => string | undefined;
+  selectedElementIds?: string[];
+  onHandleMouseDown?: (e: React.MouseEvent, handle: ResizeHandleType, elementId: string) => void;
 }
 
 export const PageCanvas: React.FC<PageCanvasProps> = ({
@@ -22,6 +26,8 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
   gridVisible,
   gridSizeMm,
   assetResolver,
+  selectedElementIds = [],
+  onHandleMouseDown,
 }) => {
   const { width: widthMm, height: heightMm, margins } = pageSettings;
 
@@ -118,6 +124,14 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
             />
           ))}
         </g>
+
+        {/* Selection & Resize Handles Overlay */}
+        <SelectionOverlay
+          selectedElementIds={selectedElementIds}
+          elements={elements}
+          zoom={zoom}
+          onHandleMouseDown={onHandleMouseDown}
+        />
 
         {/* Page Center Crosshair / Origin Indicator */}
         <g opacity={0.3} pointerEvents="none">

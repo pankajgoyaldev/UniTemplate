@@ -7,6 +7,7 @@ import {
   type Point,
   type ViewportState,
   type GridSizeMm,
+  type ResizeHandleType,
 } from '@uts/canvas-engine';
 
 export type ToolType = 'select' | 'hand';
@@ -18,6 +19,12 @@ interface UIState extends ViewportState {
   gridVisible: boolean;
   gridSizeMm: GridSizeMm;
   cursorPosMm: Point | null;
+
+  // Selection & Manipulation State
+  selectedElementIds: string[];
+  activeHandle: ResizeHandleType | null;
+  isDraggingElement: boolean;
+  isResizingElement: boolean;
 
   // Actions
   setZoom: (zoom: number) => void;
@@ -35,6 +42,15 @@ interface UIState extends ViewportState {
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
+
+  // Selection Actions
+  selectElement: (id: string, multi?: boolean) => void;
+  selectElements: (ids: string[]) => void;
+  clearSelection: () => void;
+  toggleElementSelection: (id: string) => void;
+  setActiveHandle: (handle: ResizeHandleType | null) => void;
+  setIsDraggingElement: (dragging: boolean) => void;
+  setIsResizingElement: (resizing: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -49,6 +65,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   gridVisible: true,
   gridSizeMm: 10,
   cursorPosMm: null,
+
+  selectedElementIds: [],
+  activeHandle: null,
+  isDraggingElement: false,
+  isResizingElement: false,
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
@@ -107,5 +128,37 @@ export const useUIStore = create<UIState>((set, get) => ({
     const center = { x: viewportWidth / 2, y: viewportHeight / 2 };
     get().zoomAtPoint(1.0, center);
   },
+
+  selectElement: (id, multi = false) => {
+    if (multi) {
+      const current = get().selectedElementIds;
+      if (current.includes(id)) {
+        set({ selectedElementIds: current.filter((item) => item !== id) });
+      } else {
+        set({ selectedElementIds: [...current, id] });
+      }
+    } else {
+      set({ selectedElementIds: [id] });
+    }
+  },
+
+  selectElements: (ids) => set({ selectedElementIds: ids }),
+
+  clearSelection: () => set({ selectedElementIds: [], activeHandle: null }),
+
+  toggleElementSelection: (id) => {
+    const current = get().selectedElementIds;
+    if (current.includes(id)) {
+      set({ selectedElementIds: current.filter((item) => item !== id) });
+    } else {
+      set({ selectedElementIds: [...current, id] });
+    }
+  },
+
+  setActiveHandle: (handle) => set({ activeHandle: handle }),
+
+  setIsDraggingElement: (dragging) => set({ isDraggingElement: dragging }),
+
+  setIsResizingElement: (resizing) => set({ isResizingElement: resizing }),
 }));
 

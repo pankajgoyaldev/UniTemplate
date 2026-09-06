@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { TemplateAst, PageSettings, TemplateElement } from '@uts/core';
+import { calculateMultiElementMove, type Point, type ElementBounds } from '@uts/canvas-engine';
 
 interface TemplateState {
   template: TemplateAst;
@@ -7,6 +8,10 @@ interface TemplateState {
   setTemplate: (template: TemplateAst) => void;
   updatePageSettings: (settings: Partial<PageSettings>) => void;
   addElement: (element: TemplateElement) => void;
+  updateElementBounds: (id: string, bounds: ElementBounds) => void;
+  updateMultipleElementBounds: (updates: { id: string; bounds: ElementBounds }[]) => void;
+  deleteElements: (ids: string[]) => void;
+  nudgeElements: (ids: string[], deltaMm: Point, pageWidthMm: number, pageHeightMm: number) => void;
 }
 
 // Inline sample SVG logo for instant out-of-the-box rendering
@@ -200,4 +205,65 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         elements: [...state.template.elements, element],
       },
     })),
+
+  updateElementBounds: (id, bounds) =>
+    set((state) => ({
+      template: {
+        ...state.template,
+        elements: state.template.elements.map((el) =>
+          el.id === id ? { ...el, bounds: { ...bounds } } : el,
+        ),
+      },
+    })),
+
+  updateMultipleElementBounds: (updates) =>
+    set((state) => {
+      const updateMap = new Map(updates.map((u) => [u.id, u.bounds]));
+      return {
+        template: {
+          ...state.template,
+          elements: state.template.elements.map((el) => {
+            const newBounds = updateMap.get(el.id);
+            return newBounds ? { ...el, bounds: { ...newBounds } } : el;
+          }),
+        },
+      };
+    }),
+
+  deleteElements: (ids) =>
+    set((state) => ({
+      template: {
+        ...state.template,
+        // Only delete unlocked elements
+        elements: state.template.elements.filter(
+          (el) => !ids.includes(el.id) || el.isLocked,
+        ),
+      },
+    })),
+
+  nudgeElements: (ids, deltaMm, pageWidthMm, pageHeightMm) =>
+    set((state) => {
+      const targetElements = state.template.elements.filter(
+        (el) => ids.includes(el.id) && !el.isLocked,
+      );
+      if (targetElements.length === 0) return state;
+
+      const moved = calculateMultiElementMove(
+        targetElements.map((el) => ({ id: el.id, initialBounds: el.bounds })),
+        deltaMm,
+        pageWidthMm,
+        pageHeightMm,
+      );
+
+      const moveMap = new Map(moved.map((m) => [m.id, m.bounds]));
+      return {
+        template: {
+          ...state.template,
+          elements: state.template.elements.map((el) => {
+            const newBounds = moveMap.get(el.id);
+            return newBounds ? { ...el, bounds: newBounds } : el;
+          }),
+        },
+      };
+    }),
 }));
