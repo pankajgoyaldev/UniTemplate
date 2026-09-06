@@ -103,3 +103,4 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     </g>
   );
 };
+
