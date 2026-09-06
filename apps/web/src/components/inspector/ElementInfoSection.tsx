@@ -5,6 +5,7 @@ import { InspectorSection } from './InspectorSection.js';
 
 export interface ElementInfoSectionProps {
   element: TemplateElement;
+  disabled?: boolean;
   onUpdateName: (name: string) => void;
   onToggleLock: () => void;
   onToggleVisibility: () => void;
@@ -12,10 +13,12 @@ export interface ElementInfoSectionProps {
 
 export const ElementInfoSection: React.FC<ElementInfoSectionProps> = ({
   element,
+  disabled = false,
   onUpdateName,
   onToggleLock,
   onToggleVisibility,
 }) => {
+  const isNameDisabled = element.isLocked || disabled || !element.isVisible;
   return (
     <InspectorSection
       title="Element Info"
@@ -35,7 +38,7 @@ export const ElementInfoSection: React.FC<ElementInfoSectionProps> = ({
             {element.isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
           </button>
 
-          {/* Visibility Toggle */}
+          {/* Visibility Toggle: Available to make element visible again if unlocked */}
           <button
             type="button"
             disabled={element.isLocked}
@@ -43,7 +46,7 @@ export const ElementInfoSection: React.FC<ElementInfoSectionProps> = ({
             title={element.isVisible ? 'Hide Element' : 'Show Element'}
             className={`p-1 rounded transition-colors ${
               !element.isVisible
-                ? 'bg-zinc-800 text-zinc-400'
+                ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40'
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
             } disabled:opacity-40`}
           >
@@ -52,14 +55,14 @@ export const ElementInfoSection: React.FC<ElementInfoSectionProps> = ({
         </div>
       }
     >
-      {/* Name (Editable if unlocked) */}
+      {/* Name (Editable only if unlocked and visible) */}
       <div className="flex items-center justify-between text-xs py-1">
         <span className="text-studio-muted font-medium w-20 shrink-0 select-none">
           Name
         </span>
         <input
           type="text"
-          disabled={element.isLocked}
+          disabled={isNameDisabled}
           value={element.name}
           onChange={(e) => onUpdateName(e.target.value)}
           className="bg-zinc-900 border border-studio-border rounded px-2 py-1 text-studio-text text-xs focus:outline-none focus:border-blue-500 max-w-[160px] flex-1 disabled:opacity-40"
@@ -105,6 +108,14 @@ export const ElementInfoSection: React.FC<ElementInfoSectionProps> = ({
         <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs">
           <Lock className="w-3.5 h-3.5 shrink-0 text-amber-400" />
           <span>This element is locked. Unlock it to edit its properties.</span>
+        </div>
+      )}
+
+      {/* Notice when element is hidden */}
+      {!element.isVisible && !element.isLocked && (
+        <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-xs">
+          <EyeOff className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+          <span>This element is hidden. Make it visible to edit its properties.</span>
         </div>
       )}
     </InspectorSection>

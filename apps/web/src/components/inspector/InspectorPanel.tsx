@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Lock, Trash2, Layers, Sliders } from 'lucide-react';
+import { MousePointer, Lock, Trash2, Layers, Sliders, EyeOff } from 'lucide-react';
 import { calculateMultiElementBoundingBox, calculateMultiElementMove, type ElementBounds } from '@uts/canvas-engine';
 import { useUIStore } from '../../store/useUIStore.js';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
@@ -68,7 +68,7 @@ export const InspectorPanel: React.FC = () => {
             if (!groupBbox) return null;
 
             const allLocked = selectedElements.every((e) => e.isLocked);
-            const someLocked = selectedElements.some((e) => e.isLocked);
+            const someLockedOrHidden = selectedElements.some((e) => e.isLocked || !e.isVisible);
 
             return (
               <div className="divide-y divide-studio-border/60">
@@ -101,7 +101,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Left */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Left"
                         onClick={() => {
                           const deltaX = -groupBbox.x;
@@ -125,7 +125,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Center H */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Center H"
                         onClick={() => {
                           const targetX = (pageSettings.width - groupBbox.width) / 2;
@@ -150,7 +150,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Right */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Right"
                         onClick={() => {
                           const targetX = pageSettings.width - groupBbox.width;
@@ -175,7 +175,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Top */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Top"
                         onClick={() => {
                           const deltaY = -groupBbox.y;
@@ -199,7 +199,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Middle V */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Middle V"
                         onClick={() => {
                           const targetY = (pageSettings.height - groupBbox.height) / 2;
@@ -224,7 +224,7 @@ export const InspectorPanel: React.FC = () => {
                       {/* Bottom */}
                       <button
                         type="button"
-                        disabled={someLocked}
+                        disabled={someLockedOrHidden}
                         title="Align Group Bottom"
                         onClick={() => {
                           const targetY = pageSettings.height - groupBbox.height;
@@ -280,6 +280,8 @@ export const InspectorPanel: React.FC = () => {
       {/* Single Element Selected State */}
       {selectionCount === 1 && (() => {
         const element = selectedElements[0];
+        const isEditable = !element.isLocked && element.isVisible;
+        const isDisabled = !isEditable;
 
         return (
           <div className="flex flex-col divide-y divide-studio-border/60 pb-8">
@@ -291,17 +293,26 @@ export const InspectorPanel: React.FC = () => {
                   {element.name}
                 </span>
               </div>
-              {element.isLocked && (
-                <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  <Lock className="w-2.5 h-2.5" />
-                  Locked
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!element.isVisible && (
+                  <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                    <EyeOff className="w-2.5 h-2.5" />
+                    Hidden
+                  </span>
+                )}
+                {element.isLocked && (
+                  <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <Lock className="w-2.5 h-2.5" />
+                    Locked
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* 1. Element Info */}
             <ElementInfoSection
               element={element}
+              disabled={isDisabled}
               onUpdateName={(name) => updateElement(element.id, { name })}
               onToggleLock={() => toggleElementLock(element.id)}
               onToggleVisibility={() => toggleElementVisibility(element.id)}
@@ -310,7 +321,8 @@ export const InspectorPanel: React.FC = () => {
             {/* 2. Position & Size */}
             <PositionSection
               bounds={element.bounds}
-              isLocked={element.isLocked}
+              isLocked={isDisabled}
+              disabled={isDisabled}
               pageWidth={pageSettings.width}
               pageHeight={pageSettings.height}
               onChange={(bounds: ElementBounds) => updateElement(element.id, { bounds })}
@@ -320,7 +332,7 @@ export const InspectorPanel: React.FC = () => {
             {element.type === 'text' && (
               <TypographySection
                 element={element}
-                disabled={element.isLocked}
+                disabled={isDisabled}
                 onUpdate={(patch) => updateElement(element.id, patch)}
               />
             )}
@@ -329,7 +341,7 @@ export const InspectorPanel: React.FC = () => {
             {(element.type === 'shape' || element.type === 'image' || element.type === 'barcode') && (
               <AppearanceSection
                 element={element}
-                disabled={element.isLocked}
+                disabled={isDisabled}
                 onUpdate={(patch) => updateElement(element.id, patch)}
               />
             )}

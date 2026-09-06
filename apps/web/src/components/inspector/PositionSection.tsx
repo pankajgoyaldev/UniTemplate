@@ -6,7 +6,8 @@ import { NumericInput } from './NumericInput.js';
 
 export interface PositionSectionProps {
   bounds: ElementBounds;
-  isLocked: boolean;
+  isLocked?: boolean;
+  disabled?: boolean;
   pageWidth: number;
   pageHeight: number;
   onChange: (bounds: ElementBounds) => void;
@@ -14,13 +15,16 @@ export interface PositionSectionProps {
 
 export const PositionSection: React.FC<PositionSectionProps> = ({
   bounds,
-  isLocked,
+  isLocked = false,
+  disabled = false,
   pageWidth,
   pageHeight,
   onChange,
 }) => {
+  const isEffectiveDisabled = isLocked || disabled;
+
   const handleUpdate = (field: keyof ElementBounds, value: number) => {
-    if (isLocked) return;
+    if (isEffectiveDisabled) return;
     const updated: ElementBounds = {
       ...bounds,
       [field]: value,
@@ -31,7 +35,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
   };
 
   const handleAlign = (alignment: AlignmentType) => {
-    if (isLocked) return;
+    if (isEffectiveDisabled) return;
     const aligned = calculateElementPageAlignment(bounds, alignment, pageWidth, pageHeight);
     onChange(aligned);
   };
@@ -47,7 +51,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Left */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-left')}
             title="Align Left"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -62,7 +66,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Center H */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-center-h')}
             title="Align Center Horizontally"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -77,7 +81,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Right */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-right')}
             title="Align Right"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -92,7 +96,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Top */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-top')}
             title="Align Top"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -107,7 +111,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Middle V */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-middle-v')}
             title="Align Middle Vertically"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -122,7 +126,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           {/* Bottom */}
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isEffectiveDisabled}
             onClick={() => handleAlign('align-bottom')}
             title="Align Bottom"
             className="p-1.5 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -142,7 +146,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           label="X"
           unit="mm"
           value={bounds.x}
-          disabled={isLocked}
+          disabled={isEffectiveDisabled}
           step={1}
           onChange={(v) => handleUpdate('x', v)}
         />
@@ -150,7 +154,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           label="Y"
           unit="mm"
           value={bounds.y}
-          disabled={isLocked}
+          disabled={isEffectiveDisabled}
           step={1}
           onChange={(v) => handleUpdate('y', v)}
         />
@@ -159,7 +163,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           unit="mm"
           min={0.1}
           value={bounds.width}
-          disabled={isLocked}
+          disabled={isEffectiveDisabled}
           step={1}
           onChange={(v) => handleUpdate('width', v)}
         />
@@ -168,7 +172,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           unit="mm"
           min={0}
           value={bounds.height}
-          disabled={isLocked}
+          disabled={isEffectiveDisabled}
           step={1}
           onChange={(v) => handleUpdate('height', v)}
         />
@@ -182,7 +186,7 @@ export const PositionSection: React.FC<PositionSectionProps> = ({
           min={0}
           max={359.9}
           value={bounds.rotation ?? 0}
-          disabled={isLocked}
+          disabled={isEffectiveDisabled}
           step={1}
           precision={1}
           onChange={(v) => handleUpdate('rotation', v)}

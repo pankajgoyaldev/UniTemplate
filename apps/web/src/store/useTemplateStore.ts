@@ -186,33 +186,119 @@ const DEFAULT_A4_TEMPLATE: TemplateAst = {
   ],
 };
 
+function sanitizeBounds(
+  patchBounds: Partial<ElementBounds> | undefined,
+  fallback: ElementBounds,
+): ElementBounds {
+  if (!patchBounds) return fallback;
+
+  const x =
+    patchBounds.x !== undefined && Number.isFinite(patchBounds.x)
+      ? patchBounds.x
+      : fallback.x;
+  const y =
+    patchBounds.y !== undefined && Number.isFinite(patchBounds.y)
+      ? patchBounds.y
+      : fallback.y;
+  const width =
+    patchBounds.width !== undefined &&
+    Number.isFinite(patchBounds.width) &&
+    patchBounds.width > 0
+      ? patchBounds.width
+      : fallback.width;
+  const height =
+    patchBounds.height !== undefined &&
+    Number.isFinite(patchBounds.height) &&
+    patchBounds.height >= 0
+      ? patchBounds.height
+      : fallback.height;
+  const rotation =
+    patchBounds.rotation !== undefined && Number.isFinite(patchBounds.rotation)
+      ? ((patchBounds.rotation % 360) + 360) % 360
+      : fallback.rotation;
+
+  return { x, y, width, height, rotation };
+}
+
 function patchElement(el: TemplateElement, patch: Partial<TemplateElement>): TemplateElement {
-  const updatedBounds = patch.bounds ? { ...el.bounds, ...patch.bounds } : el.bounds;
+  const updatedBounds = sanitizeBounds(patch.bounds, el.bounds);
 
   switch (el.type) {
     case 'text': {
       const textPatch = patch as Partial<typeof el>;
+      const existingStyle = el.style;
+      const patchStyle = textPatch.style;
+
+      let updatedStyle = existingStyle;
+      if (patchStyle) {
+        updatedStyle = {
+          ...existingStyle,
+          ...patchStyle,
+          fontSizePt:
+            patchStyle.fontSizePt !== undefined &&
+            Number.isFinite(patchStyle.fontSizePt) &&
+            patchStyle.fontSizePt > 0
+              ? patchStyle.fontSizePt
+              : existingStyle.fontSizePt,
+          lineHeight:
+            patchStyle.lineHeight !== undefined &&
+            Number.isFinite(patchStyle.lineHeight) &&
+            patchStyle.lineHeight > 0
+              ? patchStyle.lineHeight
+              : existingStyle.lineHeight,
+          letterSpacingPt:
+            patchStyle.letterSpacingPt !== undefined &&
+            Number.isFinite(patchStyle.letterSpacingPt)
+              ? patchStyle.letterSpacingPt
+              : existingStyle.letterSpacingPt,
+        };
+      }
+
       return {
         ...el,
         ...patch,
         bounds: updatedBounds,
-        style: textPatch.style ? { ...el.style, ...textPatch.style } : el.style,
+        style: updatedStyle,
         type: 'text',
       };
     }
     case 'shape': {
+      const shapePatch = patch as Partial<typeof el>;
+      const strokeWidthMm =
+        shapePatch.strokeWidthMm !== undefined &&
+        Number.isFinite(shapePatch.strokeWidthMm) &&
+        shapePatch.strokeWidthMm >= 0
+          ? shapePatch.strokeWidthMm
+          : el.strokeWidthMm;
+
+      const cornerRadiusMm =
+        shapePatch.cornerRadiusMm !== undefined
+          ? Number.isFinite(shapePatch.cornerRadiusMm) && shapePatch.cornerRadiusMm >= 0
+            ? shapePatch.cornerRadiusMm
+            : el.cornerRadiusMm
+          : el.cornerRadiusMm;
+
       return {
         ...el,
         ...patch,
         bounds: updatedBounds,
+        strokeWidthMm,
+        cornerRadiusMm,
         type: 'shape',
       };
     }
     case 'image': {
+      const imgPatch = patch as Partial<typeof el>;
+      const opacity =
+        imgPatch.opacity !== undefined && Number.isFinite(imgPatch.opacity)
+          ? Math.max(0, Math.min(1, imgPatch.opacity))
+          : el.opacity;
+
       return {
         ...el,
         ...patch,
         bounds: updatedBounds,
+        opacity,
         type: 'image',
       };
     }
@@ -259,13 +345,27 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         ...state.template,
         elements: state.template.elements.map((el) => {
           if (el.id !== id) return el;
+
+          // 1. Locked element protection: only unlocking is allowed
           if (el.isLocked) {
-            // Locked elements cannot be modified, except unlocking
             if (patch.isLocked === false) {
               return { ...el, isLocked: false };
             }
             return el;
           }
+
+          // 2. Invisible element protection: cannot modify properties while hidden,
+          // only making it visible again (or locking it) is allowed
+          if (!el.isVisible) {
+            if (patch.isVisible === true) {
+              return { ...el, isVisible: true };
+            }
+            if (patch.isLocked === true) {
+              return { ...el, isLocked: true };
+            }
+            return el;
+          }
+
           return patchElement(el, patch);
         }),
       },
@@ -279,6 +379,7 @@ export const useTemplateStore = create<TemplateState>((set) => ({
           ...state.template,
           elements: state.template.elements.map((el) => {
             if (!idSet.has(el.id) || el.isLocked) return el;
+            if (!el.isVisible && patch.isVisible !== true) return el;
             return patchElement(el, patch);
           }),
         },
@@ -290,7 +391,9 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       template: {
         ...state.template,
         elements: state.template.elements.map((el) =>
-          el.id === id && !el.isLocked ? { ...el, bounds: { ...bounds } } : el,
+          el.id === id && !el.isLocked && el.isVisible
+            ? { ...el, bounds: sanitizeBounds(bounds, el.bounds) }
+            : el,
         ),
       },
     })),
@@ -303,7 +406,9 @@ export const useTemplateStore = create<TemplateState>((set) => ({
           ...state.template,
           elements: state.template.elements.map((el) => {
             const newBounds = updateMap.get(el.id);
-            return newBounds && !el.isLocked ? { ...el, bounds: { ...newBounds } } : el;
+            return newBounds && !el.isLocked && el.isVisible
+              ? { ...el, bounds: sanitizeBounds(newBounds, el.bounds) }
+              : el;
           }),
         },
       };

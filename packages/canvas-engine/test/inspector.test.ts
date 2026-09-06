@@ -104,6 +104,19 @@ describe('Task 5 — Inspector Panel & Store Properties', () => {
           strokeColor: '#000000',
           strokeWidthMm: 0.5,
         },
+        {
+          id: 'hidden_1',
+          type: 'shape',
+          name: 'Hidden Shape',
+          bounds: { x: 30, y: 30, width: 40, height: 40, rotation: 0 },
+          isLocked: false,
+          isVisible: false,
+          zIndex: 6,
+          shapeType: 'rectangle',
+          fillColor: '#00ff00',
+          strokeColor: '#000000',
+          strokeWidthMm: 1.0,
+        },
       ],
     };
 
@@ -387,5 +400,139 @@ describe('Task 5 — Inspector Panel & Store Properties', () => {
     expect(text.bounds.x).toBe(15);
     expect(text.style.fontFamily).toBe('Inter, sans-serif'); // Typography preserved
     expect(text.content).toBe('Hello Universe'); // Content preserved
+  });
+
+  // 17. Invisible selected element cannot have position/properties modified
+  it('17. invisible element cannot have position or properties modified through store updates', () => {
+    const hiddenBefore = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(hiddenBefore?.isVisible).toBe(false);
+
+    // Attempt to change bounds of invisible element
+    useTemplateStore.getState().updateElement('hidden_1', {
+      bounds: { x: 99, y: 99, width: 99, height: 99, rotation: 0 },
+    });
+    let el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.bounds.x).toBe(30);
+    expect(el?.bounds.y).toBe(30);
+
+    // Attempt to change bounds via updateElementBounds
+    useTemplateStore.getState().updateElementBounds('hidden_1', {
+      x: 99,
+      y: 99,
+      width: 99,
+      height: 99,
+      rotation: 0,
+    });
+    el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.bounds.x).toBe(30);
+
+    // Attempt to modify properties via updateElements
+    useTemplateStore.getState().updateElements(['hidden_1'], {
+      name: 'Hacked Name',
+    });
+    el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.name).toBe('Hidden Shape');
+  });
+
+  // 18. Invisible element can be made visible again through intended visibility control
+  it('18. invisible element can be made visible again through toggleElementVisibility and updateElement', () => {
+    let el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.isVisible).toBe(false);
+
+    // Make visible via updateElement({ isVisible: true })
+    useTemplateStore.getState().updateElement('hidden_1', { isVisible: true });
+    el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.isVisible).toBe(true);
+
+    // Now it is editable normally
+    useTemplateStore.getState().updateElement('hidden_1', {
+      name: 'Restored Shape',
+      bounds: { x: 45, y: 45, width: 50, height: 50, rotation: 0 },
+    });
+    el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.name).toBe('Restored Shape');
+    expect(el?.bounds.x).toBe(45);
+
+    // Toggling visibility hides it again
+    useTemplateStore.getState().toggleElementVisibility('hidden_1');
+    el = useTemplateStore.getState().template.elements.find((e) => e.id === 'hidden_1');
+    expect(el?.isVisible).toBe(false);
+  });
+
+  // 19. NaN/Infinity cannot enter AST through updateElement/updateElements
+  it('19. NaN and Infinity cannot enter AST through updateElement or updateElements', () => {
+    // Attempt invalid numeric values in bounds and shape properties
+    useTemplateStore.getState().updateElement('rect_1', {
+      bounds: {
+        x: NaN,
+        y: Infinity,
+        width: NaN,
+        height: -10,
+        rotation: NaN,
+      } as any,
+      strokeWidthMm: NaN,
+      cornerRadiusMm: Infinity,
+    } as any);
+
+    const rect = useTemplateStore.getState().template.elements.find((e) => e.id === 'rect_1') as ShapeElement;
+    expect(Number.isFinite(rect.bounds.x)).toBe(true);
+    expect(Number.isFinite(rect.bounds.y)).toBe(true);
+    expect(Number.isFinite(rect.bounds.width)).toBe(true);
+    expect(rect.bounds.width).toBeGreaterThan(0);
+    expect(Number.isFinite(rect.bounds.height)).toBe(true);
+    expect(rect.bounds.height).toBeGreaterThanOrEqual(0);
+    expect(Number.isFinite(rect.bounds.rotation)).toBe(true);
+    expect(Number.isFinite(rect.strokeWidthMm)).toBe(true);
+    expect(rect.cornerRadiusMm === undefined || Number.isFinite(rect.cornerRadiusMm)).toBe(true);
+
+    // Attempt invalid numeric values in text typography style via updateElements
+    useTemplateStore.getState().updateElements(['text_1'], {
+      style: {
+        fontSizePt: NaN,
+        lineHeight: Infinity,
+        letterSpacingPt: NaN,
+      } as any,
+    } as any);
+
+    const text = useTemplateStore.getState().template.elements.find((e) => e.id === 'text_1') as TextElement;
+    expect(Number.isFinite(text.style.fontSizePt)).toBe(true);
+    expect(text.style.fontSizePt).toBeGreaterThan(0);
+    expect(Number.isFinite(text.style.lineHeight)).toBe(true);
+    expect(text.style.lineHeight).toBeGreaterThan(0);
+    expect(text.style.letterSpacingPt === undefined || Number.isFinite(text.style.letterSpacingPt)).toBe(true);
+  });
+
+  // 20. Existing locked-element protection still works across all store actions
+  it('20. existing locked-element protection still works across all store actions', () => {
+    const lockedInitial = useTemplateStore.getState().template.elements.find((e) => e.id === 'locked_1');
+    expect(lockedInitial?.isLocked).toBe(true);
+
+    // updateElement rejected
+    useTemplateStore.getState().updateElement('locked_1', {
+      bounds: { x: 5, y: 5, width: 200, height: 200, rotation: 0 },
+      name: 'Locked Bypass',
+    });
+    // updateElements rejected
+    useTemplateStore.getState().updateElements(['locked_1'], {
+      bounds: { x: 5, y: 5, width: 200, height: 200, rotation: 0 },
+    });
+    // updateElementBounds rejected
+    useTemplateStore.getState().updateElementBounds('locked_1', {
+      x: 5,
+      y: 5,
+      width: 200,
+      height: 200,
+      rotation: 0,
+    });
+    // nudgeElements skipped
+    useTemplateStore.getState().nudgeElements(['locked_1'], { x: 20, y: 20 }, PAGE_WIDTH, PAGE_HEIGHT);
+    // deleteElements preserved
+    useTemplateStore.getState().deleteElements(['locked_1']);
+
+    const lockedAfter = useTemplateStore.getState().template.elements.find((e) => e.id === 'locked_1');
+    expect(lockedAfter).toBeDefined();
+    expect(lockedAfter?.bounds.x).toBe(100);
+    expect(lockedAfter?.bounds.y).toBe(100);
+    expect(lockedAfter?.name).toBe('Locked Shape');
   });
 });
