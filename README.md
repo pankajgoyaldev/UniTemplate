@@ -216,3 +216,4 @@ The following features represent the ongoing product development roadmap:
 ## License
 
 This project is currently distributed under a proprietary commercial license placeholder. For inquiries, licensing, or commercial partnerships, please contact the repository owner.
+
