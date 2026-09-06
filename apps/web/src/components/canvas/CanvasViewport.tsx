@@ -27,6 +27,7 @@ export const CanvasViewport: React.FC = () => {
 
   // Template Store
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
+  const elements = useTemplateStore((s) => s.template.elements);
 
   // Local drag tracking
   const [dragStart, setDragStart] = useState<Point | null>(null);
@@ -225,6 +226,7 @@ export const CanvasViewport: React.FC = () => {
         {/* Scaled & Translated Physical Page */}
         <PageCanvas
           pageSettings={pageSettings}
+          elements={elements}
           zoom={zoom}
           panX={panX}
           panY={panY}

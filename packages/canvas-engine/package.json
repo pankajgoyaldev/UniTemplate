@@ -10,7 +10,8 @@
     "test:watch": "node ../core/node_modules/vitest/vitest.mjs"
   },
   "dependencies": {
-    "@uts/core": "workspace:*"
+    "@uts/core": "workspace:*",
+    "bwip-js": "^4.11.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",

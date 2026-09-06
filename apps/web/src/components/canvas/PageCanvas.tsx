@@ -1,22 +1,27 @@
-import React from 'react';
-import { mmToPx, type PageSettings } from '@uts/core';
+import React, { useMemo } from 'react';
+import { mmToPx, type PageSettings, type TemplateElement } from '@uts/core';
+import { ElementRenderer } from './ElementRenderer.js';
 
 interface PageCanvasProps {
   pageSettings: PageSettings;
+  elements: TemplateElement[];
   zoom: number;
   panX: number;
   panY: number;
   gridVisible: boolean;
   gridSizeMm: 5 | 10;
+  assetResolver?: (assetRef: string) => string | undefined;
 }
 
 export const PageCanvas: React.FC<PageCanvasProps> = ({
   pageSettings,
+  elements,
   zoom,
   panX,
   panY,
   gridVisible,
   gridSizeMm,
+  assetResolver,
 }) => {
   const { width: widthMm, height: heightMm, margins } = pageSettings;
 
@@ -36,6 +41,11 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
 
   // Grid step in scaled pixels
   const gridStepPx = mmToPx(gridSizeMm, 96) * zoom;
+
+  // Sort elements by zIndex ascending
+  const sortedElements = useMemo(() => {
+    return [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+  }, [elements]);
 
   return (
     <div
@@ -97,8 +107,20 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
           opacity={0.6}
         />
 
+        {/* Rendered Template Elements */}
+        <g className="template-elements-layer">
+          {sortedElements.map((element) => (
+            <ElementRenderer
+              key={element.id}
+              element={element}
+              zoom={zoom}
+              assetResolver={assetResolver}
+            />
+          ))}
+        </g>
+
         {/* Page Center Crosshair / Origin Indicator */}
-        <g opacity={0.3}>
+        <g opacity={0.3} pointerEvents="none">
           <line x1={scaledWidthPx / 2 - 8} y1={scaledHeightPx / 2} x2={scaledWidthPx / 2 + 8} y2={scaledHeightPx / 2} stroke="#64748b" strokeWidth="1" />
           <line x1={scaledWidthPx / 2} y1={scaledHeightPx / 2 - 8} x2={scaledWidthPx / 2} y2={scaledHeightPx / 2 + 8} stroke="#64748b" strokeWidth="1" />
         </g>
@@ -106,4 +128,3 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
     </div>
   );
 };
-

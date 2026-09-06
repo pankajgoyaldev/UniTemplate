@@ -1,7 +1,7 @@
 # Universe Template Studio (UTS) - Phase 1 Web-First Implementation Plan
 
 **Author:** Antigravity Architecture Team  
-**Status:** Task 1 Complete ✅ | Ready for Task 2 Approval  
+**Status:** Task 1, 2 & 3 Complete ✅ | Ready for Task 4 Approval  
 **Strategy:** Web-First React + TypeScript, Portable `.uts` Archive, Decoupled AST, Future Electron Integration  
 
 ---
@@ -10,10 +10,10 @@
 
 | Milestone / Task | Description | Status | Verification / Artifacts |
 | :--- | :--- | :---: | :--- |
-| **Task 1: Core Foundation** | pnpm monorepo scaffolding, `@uts/core` AST v1.0.0, Zod schemas, unit conversion math, `.uts` ZIP packager. | **DONE** ✅ | 16/16 Vitest tests passed (769ms). Clean `tsc -b` compilation. |
-| **Task 2: Canvas Viewport & Math** | Interactive canvas viewport in React, sub-millimeter metric rulers (mm), grid lines, pan/zoom engine, coordinate transformation matrix. | **READY** ⏳ | Next task awaiting approval. |
-| **Task 3: Core Elements & Renderers** | Decoupled renderers for Text, Shapes, Images (embedded assets), and Barcodes (via `bwip-js`). | Backlog | Milestone 3 |
-| **Task 4: Selection & Transform** | Multi-select lasso, 8-point resize handles, rotation handle, keyboard shortcuts (Delete, Arrow nudge, Undo/Redo). | Backlog | Milestone 4 |
+| **Task 1: Core Foundation** | pnpm monorepo scaffolding, `@uts/core` AST v1.0.0, Zod schemas, unit conversion math, `.uts` ZIP packager. | **DONE** ✅ | 16/16 Vitest tests passed. Clean `tsc -b` compilation. |
+| **Task 2: Canvas Viewport & Math** | Interactive canvas viewport in React, sub-millimeter metric rulers (mm), grid lines, pan/zoom engine, coordinate transformation matrix. | **DONE** ✅ | 14/14 Vitest tests passed. Viewport verified at 60 FPS. |
+| **Task 3: Core Elements & Renderers** | Decoupled SVG renderers for Text (multi-line), Shapes (rect, rounded-rect, ellipse, line), Images (contain/cover/stretch), and Barcodes (`bwip-js` for Code128, EAN13, QR). | **DONE** ✅ | 20/20 new tests passed (50/50 total across monorepo). Production build verified. |
+| **Task 4: Selection & Transform** | Direct visual selection, 8-point bounding box resize handles, rotation handle, keyboard shortcuts (Delete, Arrow nudge, Undo/Redo). | **READY** ⏳ | Next task awaiting approval. |
 | **Task 5: Snapping & Alignment** | Magnetic snap guides (edge-to-edge, center-to-center), distribution tools (align left/center/right). | Backlog | Milestone 5 |
 | **Task 6: Property Inspector & Layers** | Right-hand property inspector panel (Geometry, Typography, Fill/Stroke, Barcode settings) and Layer management. | Backlog | Milestone 6 |
 | **Task 7: Data Binding & Mock Data** | Variable interpolation `{{variable}}`, sample JSON mock data editor, live preview toggle. | Backlog | Milestone 7 |
