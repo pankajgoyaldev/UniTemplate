@@ -21,13 +21,17 @@ export const pageSettingsSchema = z.object({
   targetDpi: z.number().int().min(72).max(1200).default(300),
 });
 
-export const boundingBoxSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number().positive({ message: 'Element width must be greater than 0' }),
-  height: z.number().positive({ message: 'Element height must be greater than 0' }),
-  rotation: z.number().min(0).max(360).default(0),
-});
+export const boundingBoxSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number().nonnegative({ message: 'Element width cannot be negative' }),
+    height: z.number().nonnegative({ message: 'Element height cannot be negative' }),
+    rotation: z.number().min(0).max(360).default(0),
+  })
+  .refine((b) => b.width > 0 || b.height > 0, {
+    message: 'Element must have at least one non-zero dimension (width > 0 or height > 0)',
+  });
 
 export const elementTypeSchema = z.enum(['text', 'image', 'shape', 'barcode']);
 

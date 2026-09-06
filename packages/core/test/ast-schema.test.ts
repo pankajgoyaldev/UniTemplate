@@ -4,6 +4,7 @@ import {
   validateTemplateAst,
   safeValidateTemplateAst,
   validateUtsManifest,
+  boundingBoxSchema,
 } from '../src/ast/schemas.js';
 
 describe('Template AST & Zod Validation', () => {
@@ -163,6 +164,33 @@ describe('Template AST & Zod Validation', () => {
     const validated = validateUtsManifest(manifest);
     expect(validated.format).toBe('UTS_PACKAGE');
     expect(validated.schemaVersion).toBe('1.0.0');
+  });
+
+  describe('Regression: Bounding Box Dimensions & Line Shape Support', () => {
+    it('allows a horizontal line where width > 0 and height = 0', () => {
+      const horizontal = { x: 10, y: 20, width: 100, height: 0, rotation: 0 };
+      expect(() => boundingBoxSchema.parse(horizontal)).not.toThrow();
+    });
+
+    it('allows a vertical line where width = 0 and height > 0', () => {
+      const vertical = { x: 10, y: 20, width: 0, height: 100, rotation: 0 };
+      expect(() => boundingBoxSchema.parse(vertical)).not.toThrow();
+    });
+
+    it('rejects a 0x0 degenerate element where both width = 0 and height = 0', () => {
+      const degenerate = { x: 10, y: 20, width: 0, height: 0, rotation: 0 };
+      expect(() => boundingBoxSchema.parse(degenerate)).toThrow(/Element must have at least one non-zero dimension/);
+    });
+
+    it('rejects negative width', () => {
+      const negativeWidth = { x: 10, y: 20, width: -10, height: 50, rotation: 0 };
+      expect(() => boundingBoxSchema.parse(negativeWidth)).toThrow(/Element width cannot be negative/);
+    });
+
+    it('rejects negative height', () => {
+      const negativeHeight = { x: 10, y: 20, width: 50, height: -10, rotation: 0 };
+      expect(() => boundingBoxSchema.parse(negativeHeight)).toThrow(/Element height cannot be negative/);
+    });
   });
 });
 

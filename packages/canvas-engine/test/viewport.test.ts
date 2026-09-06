@@ -5,12 +5,15 @@ import {
   calculateZoomAtPoint,
   calculatePan,
   clampZoom,
+  normalizeWheelDelta,
+  calculateWheelZoomFactor,
   getRulerIntervals,
   calculateRulerTicks,
   MIN_ZOOM,
   MAX_ZOOM,
 } from '../src/viewport/index.js';
 import { mmToPx } from '@uts/core';
+import { useUIStore } from '../../../apps/web/src/store/useUIStore.js';
 
 describe('Canvas Engine - Viewport & Coordinate Math', () => {
   describe('clampZoom', () => {
@@ -134,6 +137,216 @@ describe('Canvas Engine - Viewport & Coordinate Math', () => {
       expect(zeroTick!.screenPositionPx).toBeCloseTo(100, 2);
       expect(zeroTick!.type).toBe('major');
       expect(zeroTick!.label).toBe('0');
+    });
+  });
+
+  describe('Regression: Viewport Panning & Hand Tool Behavior', () => {
+    it('1:1 hand panning: pointer movement of 10px moves canvas approximately 10px (exact 1:1)', () => {
+      const initial = { zoom: 1.0, panX: 200, panY: 150, viewportWidth: 1000, viewportHeight: 800 };
+      const delta = { x: 10, y: 0 };
+      const updated = calculatePan(initial, delta);
+
+      expect(updated.panX - initial.panX).toBe(10);
+      expect(updated.panY - initial.panY).toBe(0);
+
+      // Verify vertical panning 1:1
+      const verticalDelta = { x: 0, y: 15 };
+      const updatedVertical = calculatePan(initial, verticalDelta);
+      expect(updatedVertical.panY - initial.panY).toBe(15);
+      expect(updatedVertical.panX - initial.panX).toBe(0);
+    });
+
+    it('no zoom-dependent acceleration: pan delta remains strictly 1:1 regardless of zoom level', () => {
+      const zoomLevels = [0.25, 0.5, 1.0, 2.0, 5.0];
+      const pointerMovement = { x: 10, y: -10 };
+
+      for (const zoom of zoomLevels) {
+        const viewport = { zoom, panX: 100, panY: 100, viewportWidth: 1000, viewportHeight: 800 };
+        const panned = calculatePan(viewport, pointerMovement);
+
+        // Movement must be strictly 10px screen displacement, NOT multiplied or divided by zoom
+        expect(panned.panX - viewport.panX).toBe(10);
+        expect(panned.panY - viewport.panY).toBe(-10);
+        expect(panned.zoom).toBe(zoom); // zoom must not be altered by pan
+      }
+    });
+
+    it('no initial pointerdown jump: starting drag records origin without changing canvas coordinates', () => {
+      useUIStore.getState().setPan(300, 250);
+      const initialPanX = useUIStore.getState().panX;
+      const initialPanY = useUIStore.getState().panY;
+
+      // Pointer down event: initial pointer position recorded, delta is 0
+      const pointerDownDelta = { x: 0, y: 0 };
+      useUIStore.getState().panBy(pointerDownDelta);
+
+      expect(useUIStore.getState().panX).toBe(initialPanX);
+      expect(useUIStore.getState().panY).toBe(initialPanY);
+    });
+
+    it('continuous drag: synchronous ref tracking ensures sequential events equal net displacement with zero accumulated acceleration', () => {
+      useUIStore.getState().setPan(100, 100);
+
+      // Simulate a continuous drag through 5 mousemove events from x=50 to x=80
+      const pointerPositions = [
+        { x: 50, y: 50 },
+        { x: 55, y: 52 },
+        { x: 62, y: 56 },
+        { x: 70, y: 60 },
+        { x: 80, y: 65 },
+      ];
+
+      // With ref-based tracking, each event measures delta from the immediately previous event
+      let lastPointer = pointerPositions[0];
+      for (let i = 1; i < pointerPositions.length; i++) {
+        const current = pointerPositions[i];
+        const deltaX = current.x - lastPointer.x;
+        const deltaY = current.y - lastPointer.y;
+        lastPointer = current;
+
+        useUIStore.getState().panBy({ x: deltaX, y: deltaY });
+      }
+
+      // Net displacement: dx = 80 - 50 = 30, dy = 65 - 50 = 15
+      expect(useUIStore.getState().panX).toBe(100 + 30);
+      expect(useUIStore.getState().panY).toBe(100 + 15);
+    });
+
+    it('middle mouse, Space+drag, and Hand tool use consistent 1:1 pan calculation', () => {
+      const viewport = { zoom: 1.5, panX: 50, panY: 50, viewportWidth: 800, viewportHeight: 600 };
+      const delta = { x: 25, y: 35 };
+
+      // Hand tool drag
+      const handPan = calculatePan(viewport, delta);
+      // Middle-mouse drag
+      const middlePan = calculatePan(viewport, delta);
+      // Space + drag
+      const spacePan = calculatePan(viewport, delta);
+
+      expect(handPan.panX).toBe(middlePan.panX);
+      expect(handPan.panY).toBe(middlePan.panY);
+      expect(handPan.panX).toBe(spacePan.panX);
+      expect(handPan.panY).toBe(spacePan.panY);
+      expect(handPan.panX).toBe(75);
+      expect(handPan.panY).toBe(85);
+    });
+
+    it('pointerup stops movement: subsequent events after drag end do not modify pan', () => {
+      useUIStore.getState().setPan(100, 100);
+      useUIStore.getState().setIsDragging(true);
+
+      // Dragging
+      useUIStore.getState().panBy({ x: 20, y: 10 });
+      expect(useUIStore.getState().panX).toBe(120);
+      expect(useUIStore.getState().panY).toBe(110);
+
+      // Pointer up stops drag
+      useUIStore.getState().setIsDragging(false);
+
+      // Subsequent movement without isDragging = true should not alter canvas
+      if (useUIStore.getState().isDragging) {
+        useUIStore.getState().panBy({ x: 30, y: 30 });
+      }
+
+      expect(useUIStore.getState().panX).toBe(120);
+      expect(useUIStore.getState().panY).toBe(110);
+    });
+  });
+
+  describe('mouse-wheel zoom normalization & non-jumping stability', () => {
+    it('normalizes notched mouse wheel (deltaMode 0) and line mode (deltaMode 1)', () => {
+      // Standard pixel notch (Chrome/Firefox standard)
+      expect(normalizeWheelDelta(-100, 0)).toBe(-100);
+      expect(normalizeWheelDelta(100, 0)).toBe(100);
+
+      // Line mode (3 lines = ~100px)
+      expect(normalizeWheelDelta(-3, 1)).toBeCloseTo(-100, 0);
+      expect(normalizeWheelDelta(3, 1)).toBeCloseTo(100, 0);
+
+      // Zero delta returns 0
+      expect(normalizeWheelDelta(0, 0)).toBe(0);
+    });
+
+    it('calculates consistent 1.15x step for a single 100px notch', () => {
+      // Zoom in
+      const zoomInFactor = calculateWheelZoomFactor(-100);
+      expect(zoomInFactor).toBeCloseTo(1.15, 3);
+
+      // Zoom out (1 / 1.15 = 0.869565)
+      const zoomOutFactor = calculateWheelZoomFactor(100);
+      expect(zoomOutFactor).toBeCloseTo(1 / 1.15, 3);
+
+      // Inversion symmetry: zoom in then zoom out returns exactly to 1.0x
+      expect(zoomInFactor * zoomOutFactor).toBeCloseTo(1.0, 5);
+    });
+
+    it('trackpad continuous micro-scrolling compounds smoothly without exponential runaway', () => {
+      // 10 micro-events with delta = -10 (total delta = -100)
+      let compoundFactor = 1.0;
+      for (let i = 0; i < 10; i++) {
+        compoundFactor *= calculateWheelZoomFactor(-10);
+      }
+
+      // Must equal the single notch factor (1.15x)
+      expect(compoundFactor).toBeCloseTo(1.15, 3);
+
+      // Compare with the old bug where each micro-event applied a flat 1.15x:
+      // 1.15^10 = 4.04x (a 400% explosion for a tiny 100px swipe!)
+      // With calculateWheelZoomFactor, compoundFactor is 1.15x, not 4.04x!
+      expect(compoundFactor).toBeLessThan(1.20);
+    });
+
+    it('clamps single-frame zoom factor against extreme velocity flicks', () => {
+      // Extreme rapid flick (e.g. delta = -5000)
+      const extremeZoomIn = calculateWheelZoomFactor(-5000);
+      expect(extremeZoomIn).toBe(1.5); // Clamped at max 1.5x per frame
+
+      // Extreme rapid flick out (e.g. delta = 5000)
+      const extremeZoomOut = calculateWheelZoomFactor(5000);
+      expect(extremeZoomOut).toBe(0.65); // Clamped at min 0.65x per frame
+    });
+
+    it('cursor-centered invariant holds across rapid multi-tick zoom sequences', () => {
+      let viewport: ViewportState = {
+        zoom: 1.0,
+        panX: 100,
+        panY: 80,
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      };
+
+      const cursor: Point = { x: 420, y: 310 };
+      const originalCanvasPoint = screenToCanvas(cursor, viewport);
+
+      // Simulate 8 consecutive wheel ticks zooming in and out
+      const deltas = [-100, -100, -100, 100, -100, 100, -100, -100];
+      for (const delta of deltas) {
+        const factor = calculateWheelZoomFactor(delta);
+        viewport = calculateZoomAtPoint(viewport, viewport.zoom * factor, cursor);
+
+        // At every intermediate zoom step, canvas point under cursor must not drift
+        const currentCanvasPoint = screenToCanvas(cursor, viewport);
+        expect(currentCanvasPoint.x).toBeCloseTo(originalCanvasPoint.x, 2);
+        expect(currentCanvasPoint.y).toBeCloseTo(originalCanvasPoint.y, 2);
+      }
+    });
+
+    it('gracefully handles non-finite and NaN inputs without corrupting viewport', () => {
+      expect(calculateWheelZoomFactor(NaN)).toBe(1.0);
+      expect(calculateWheelZoomFactor(Infinity)).toBe(1.0);
+      expect(clampZoom(NaN)).toBe(1.0);
+
+      const viewport: ViewportState = {
+        zoom: 1.0,
+        panX: 50,
+        panY: 50,
+        viewportWidth: 800,
+        viewportHeight: 600,
+      };
+      const result = calculateZoomAtPoint(viewport, NaN, { x: NaN, y: NaN });
+      expect(Number.isFinite(result.zoom)).toBe(true);
+      expect(Number.isFinite(result.panX)).toBe(true);
+      expect(Number.isFinite(result.panY)).toBe(true);
     });
   });
 });

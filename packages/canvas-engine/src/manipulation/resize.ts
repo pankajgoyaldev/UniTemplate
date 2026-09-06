@@ -20,8 +20,8 @@ export function calculateResizedBounds(params: ResizeParams): ElementBounds {
     handle,
     deltaMm,
     keepAspectRatio = false,
-    minWidthMm = DEFAULT_MIN_SIZE_MM,
-    minHeightMm = DEFAULT_MIN_SIZE_MM,
+    minWidthMm = initialBounds.width === 0 ? 0 : DEFAULT_MIN_SIZE_MM,
+    minHeightMm = initialBounds.height === 0 ? 0 : DEFAULT_MIN_SIZE_MM,
     pageWidthMm,
     pageHeightMm,
   } = params;
@@ -88,6 +88,16 @@ export function calculateResizedBounds(params: ResizeParams): ElementBounds {
   // 4. Enforce minimum dimensions (prevent negative or zero sizes)
   wNew = Math.max(minWidthMm, wNew);
   hNew = Math.max(minHeightMm, hNew);
+
+  if (wNew === 0 && hNew === 0) {
+    if (w0 > 0) {
+      wNew = minWidthMm > 0 ? minWidthMm : DEFAULT_MIN_SIZE_MM;
+    } else if (h0 > 0) {
+      hNew = minHeightMm > 0 ? minHeightMm : DEFAULT_MIN_SIZE_MM;
+    } else {
+      wNew = DEFAULT_MIN_SIZE_MM;
+    }
+  }
 
   // Helper to compute bounds given target width & height while keeping opposite anchor fixed
   const computeBoundsForSize = (w: number, h: number): ElementBounds => {

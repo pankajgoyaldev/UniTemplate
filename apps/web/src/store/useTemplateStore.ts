@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import type { TemplateAst, PageSettings, TemplateElement } from '@uts/core';
 import { calculateMultiElementMove, type Point, type ElementBounds } from '@uts/canvas-engine';
+import { useHistoryStore } from './history/useHistoryStore.js';
+import { useDocumentStore } from './document/useDocumentStore.js';
 
 interface TemplateState {
   template: TemplateAst;
   // Actions
-  setTemplate: (template: TemplateAst) => void;
+  setTemplate: (template: TemplateAst, skipHistory?: boolean) => void;
   updatePageSettings: (settings: Partial<PageSettings>) => void;
   addElement: (element: TemplateElement) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
@@ -18,173 +20,7 @@ interface TemplateState {
   toggleElementVisibility: (id: string) => void;
 }
 
-// Inline sample SVG logo for instant out-of-the-box rendering
-const SAMPLE_LOGO_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40"><rect width="160" height="40" rx="6" fill="%232563eb"/><circle cx="20" cy="20" r="10" fill="white"/><text x="38" y="25" fill="white" font-family="sans-serif" font-size="14" font-weight="bold">UNIVERSE</text></svg>`;
-
-const DEFAULT_A4_TEMPLATE: TemplateAst = {
-  schemaVersion: '1.0.0',
-  metadata: {
-    id: 'tpl_default_invoice',
-    title: 'Standard Tax Invoice Template',
-    description: 'A4 Portrait Tax Invoice with Barcode, QR Code and Vector Shapes',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  pageSettings: {
-    unit: 'mm',
-    width: 210,
-    height: 297,
-    orientation: 'portrait',
-    margins: { top: 10, right: 10, bottom: 10, left: 10 },
-    targetDpi: 300,
-  },
-  dataSchema: {
-    fields: [
-      { name: 'invoiceNo', type: 'string', sampleValue: 'INV-2026-0042' },
-      { name: 'totalAmount', type: 'number', sampleValue: 14500 },
-    ],
-    mockPayload: {
-      invoiceNo: 'INV-2026-0042',
-      totalAmount: 14500,
-    },
-  },
-  elements: [
-    // 1. Company Logo (Image Element)
-    {
-      id: 'el_sample_logo',
-      type: 'image',
-      name: 'Company Logo',
-      bounds: { x: 15, y: 15, width: 45, height: 12, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 1,
-      assetRef: SAMPLE_LOGO_SVG,
-      fit: 'contain',
-      opacity: 1,
-    },
-    // 2. Invoice Title (Text Element)
-    {
-      id: 'el_title',
-      type: 'text',
-      name: 'Invoice Heading',
-      bounds: { x: 120, y: 15, width: 75, height: 12, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 2,
-      content: 'TAX INVOICE',
-      style: {
-        fontFamily: 'Inter, sans-serif',
-        fontSizePt: 18,
-        fontWeight: 'bold',
-        fontStyle: 'normal',
-        color: '#0f172a',
-        alignment: 'right',
-        lineHeight: 1.2,
-        autoWrap: true,
-      },
-    },
-    // 3. Top Divider Line (Shape Element)
-    {
-      id: 'el_top_line',
-      type: 'shape',
-      name: 'Header Divider',
-      bounds: { x: 15, y: 32, width: 180, height: 0, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 3,
-      shapeType: 'line',
-      fillColor: 'transparent',
-      strokeColor: '#cbd5e1',
-      strokeWidthMm: 0.5,
-      strokeDash: 'solid',
-    },
-    // 4. Meta Information (Multi-line Text Element)
-    {
-      id: 'el_invoice_meta',
-      type: 'text',
-      name: 'Invoice Details',
-      bounds: { x: 120, y: 38, width: 75, height: 25, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 4,
-      content: 'Invoice #: INV-2026-0042\nDate: 06-Sep-2026\nDue Date: 20-Sep-2026',
-      style: {
-        fontFamily: 'Inter, sans-serif',
-        fontSizePt: 9.5,
-        fontWeight: 'normal',
-        fontStyle: 'normal',
-        color: '#475569',
-        alignment: 'right',
-        lineHeight: 1.4,
-        autoWrap: true,
-      },
-    },
-    // 5. Bill To Card (Rounded Rectangle Shape)
-    {
-      id: 'el_billto_card',
-      type: 'shape',
-      name: 'Bill-To Container Card',
-      bounds: { x: 15, y: 38, width: 85, height: 35, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 5,
-      shapeType: 'rounded-rectangle',
-      fillColor: '#f8fafc',
-      strokeColor: '#e2e8f0',
-      strokeWidthMm: 0.4,
-      cornerRadiusMm: 2.5,
-      strokeDash: 'solid',
-    },
-    // 6. Bill To Text
-    {
-      id: 'el_billto_text',
-      type: 'text',
-      name: 'Bill To Details',
-      bounds: { x: 20, y: 43, width: 75, height: 25, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 6,
-      content: 'BILLED TO:\nAcme Enterprises Pvt Ltd\n42 Business Bay, Mumbai 400001\nGSTIN: 27AABCU9603R1ZM',
-      style: {
-        fontFamily: 'Inter, sans-serif',
-        fontSizePt: 8.5,
-        fontWeight: 'normal',
-        fontStyle: 'normal',
-        color: '#1e293b',
-        alignment: 'left',
-        lineHeight: 1.35,
-        autoWrap: true,
-      },
-    },
-    // 7. E-Invoice QR Code (2D Barcode)
-    {
-      id: 'el_einvoice_qr',
-      type: 'barcode',
-      name: 'E-Invoice QR Code',
-      bounds: { x: 15, y: 235, width: 35, height: 35, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 7,
-      barcodeType: 'qr',
-      content: 'https://einvoice.gst.gov.in/verify?id=INV-2026-0042',
-      showText: false,
-      errorCorrectionLevel: 'M',
-    },
-    // 8. Shipping Tracking 1D Barcode (Code128)
-    {
-      id: 'el_tracking_code128',
-      type: 'barcode',
-      name: 'Shipping Tracking Barcode',
-      bounds: { x: 65, y: 245, width: 75, height: 22, rotation: 0 },
-      isLocked: false,
-      isVisible: true,
-      zIndex: 8,
-      barcodeType: 'code128',
-      content: 'INV-2026-0042',
-      showText: true,
-    },
-  ],
-};
+import { DEFAULT_A4_TEMPLATE } from './defaultTemplate.js';
 
 function sanitizeBounds(
   patchBounds: Partial<ElementBounds> | undefined,
@@ -200,18 +36,29 @@ function sanitizeBounds(
     patchBounds.y !== undefined && Number.isFinite(patchBounds.y)
       ? patchBounds.y
       : fallback.y;
-  const width =
+
+  const rawWidth =
     patchBounds.width !== undefined &&
     Number.isFinite(patchBounds.width) &&
-    patchBounds.width > 0
+    patchBounds.width >= 0
       ? patchBounds.width
       : fallback.width;
-  const height =
+
+  const rawHeight =
     patchBounds.height !== undefined &&
     Number.isFinite(patchBounds.height) &&
     patchBounds.height >= 0
       ? patchBounds.height
       : fallback.height;
+
+  // Invariant: at least one dimension must be positive (width > 0 || height > 0), reject 0x0
+  const isZeroByZero = rawWidth === 0 && rawHeight === 0;
+  let width = isZeroByZero ? fallback.width : rawWidth;
+  let height = isZeroByZero ? fallback.height : rawHeight;
+  if (width === 0 && height === 0) {
+    width = 1;
+  }
+
   const rotation =
     patchBounds.rotation !== undefined && Number.isFinite(patchBounds.rotation)
       ? ((patchBounds.rotation % 360) + 360) % 360
@@ -315,142 +162,152 @@ function patchElement(el: TemplateElement, patch: Partial<TemplateElement>): Tem
   }
 }
 
+function commitTemplateChange(
+  set: (fn: (state: TemplateState) => Partial<TemplateState>) => void,
+  calculateNewTemplate: (currentTemplate: TemplateAst) => TemplateAst,
+) {
+  set((state) => {
+    const prevTemplate = state.template;
+    const newTemplate = calculateNewTemplate(prevTemplate);
+    if (prevTemplate === newTemplate) {
+      return state;
+    }
+    useHistoryStore.getState().recordChange(prevTemplate, newTemplate);
+    useDocumentStore.getState().checkDirty(newTemplate);
+    return { template: newTemplate };
+  });
+}
+
 export const useTemplateStore = create<TemplateState>((set) => ({
   template: DEFAULT_A4_TEMPLATE,
 
-  setTemplate: (template) => set({ template }),
+  setTemplate: (template, skipHistory = false) => {
+    if (!skipHistory) {
+      useHistoryStore.getState().clearHistory();
+    }
+    useDocumentStore.getState().checkDirty(template);
+    set({ template });
+  },
 
   updatePageSettings: (settings) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        pageSettings: {
-          ...state.template.pageSettings,
-          ...settings,
-        },
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      pageSettings: {
+        ...prev.pageSettings,
+        ...settings,
       },
     })),
 
   addElement: (element) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        elements: [...state.template.elements, element],
-      },
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      elements: [...prev.elements, element],
     })),
 
   updateElement: (id, patch) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        elements: state.template.elements.map((el) => {
-          if (el.id !== id) return el;
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) => {
+        if (el.id !== id) return el;
 
-          // 1. Locked element protection: only unlocking is allowed
-          if (el.isLocked) {
-            if (patch.isLocked === false) {
-              return { ...el, isLocked: false };
-            }
-            return el;
+        // 1. Locked element protection: only unlocking is allowed
+        if (el.isLocked) {
+          if (patch.isLocked === false) {
+            return { ...el, isLocked: false };
           }
+          return el;
+        }
 
-          // 2. Invisible element protection: cannot modify properties while hidden,
-          // only making it visible again (or locking it) is allowed
-          if (!el.isVisible) {
-            if (patch.isVisible === true) {
-              return { ...el, isVisible: true };
-            }
-            if (patch.isLocked === true) {
-              return { ...el, isLocked: true };
-            }
-            return el;
+        // 2. Invisible element protection: cannot modify properties while hidden,
+        // only making it visible again (or locking it) is allowed
+        if (!el.isVisible) {
+          if (patch.isVisible === true) {
+            return { ...el, isVisible: true };
           }
+          if (patch.isLocked === true) {
+            return { ...el, isLocked: true };
+          }
+          return el;
+        }
 
-          return patchElement(el, patch);
-        }),
-      },
+        return patchElement(el, patch);
+      }),
     })),
 
   updateElements: (ids, patch) =>
-    set((state) => {
+    commitTemplateChange(set, (prev) => {
       const idSet = new Set(ids);
       return {
-        template: {
-          ...state.template,
-          elements: state.template.elements.map((el) => {
-            if (!idSet.has(el.id) || el.isLocked) return el;
-            if (!el.isVisible && patch.isVisible !== true) return el;
-            return patchElement(el, patch);
-          }),
-        },
+        ...prev,
+        elements: prev.elements.map((el) => {
+          if (!idSet.has(el.id) || el.isLocked) return el;
+          if (!el.isVisible && patch.isVisible !== true) return el;
+          return patchElement(el, patch);
+        }),
       };
     }),
 
   updateElementBounds: (id, bounds) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        elements: state.template.elements.map((el) =>
-          el.id === id && !el.isLocked && el.isVisible
-            ? { ...el, bounds: sanitizeBounds(bounds, el.bounds) }
-            : el,
-        ),
-      },
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) =>
+        el.id === id && !el.isLocked && el.isVisible
+          ? { ...el, bounds: sanitizeBounds(bounds, el.bounds) }
+          : el,
+      ),
     })),
 
   updateMultipleElementBounds: (updates) =>
-    set((state) => {
+    commitTemplateChange(set, (prev) => {
       const updateMap = new Map(updates.map((u) => [u.id, u.bounds]));
       return {
-        template: {
-          ...state.template,
-          elements: state.template.elements.map((el) => {
-            const newBounds = updateMap.get(el.id);
-            return newBounds && !el.isLocked && el.isVisible
-              ? { ...el, bounds: sanitizeBounds(newBounds, el.bounds) }
-              : el;
-          }),
-        },
+        ...prev,
+        elements: prev.elements.map((el) => {
+          const newBounds = updateMap.get(el.id);
+          return newBounds && !el.isLocked && el.isVisible
+            ? { ...el, bounds: sanitizeBounds(newBounds, el.bounds) }
+            : el;
+        }),
       };
     }),
 
   toggleElementLock: (id) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        elements: state.template.elements.map((el) =>
-          el.id === id ? { ...el, isLocked: !el.isLocked } : el,
-        ),
-      },
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) =>
+        el.id === id ? { ...el, isLocked: !el.isLocked } : el,
+      ),
     })),
 
   toggleElementVisibility: (id) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        elements: state.template.elements.map((el) =>
-          el.id === id && !el.isLocked ? { ...el, isVisible: !el.isVisible } : el,
-        ),
-      },
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) =>
+        el.id === id && !el.isLocked ? { ...el, isVisible: !el.isVisible } : el,
+      ),
     })),
 
   deleteElements: (ids) =>
-    set((state) => ({
-      template: {
-        ...state.template,
-        // Only delete unlocked elements
-        elements: state.template.elements.filter(
-          (el) => !ids.includes(el.id) || el.isLocked,
-        ),
-      },
-    })),
+    commitTemplateChange(set, (prev) => {
+      // Only delete unlocked elements
+      const targetIds = new Set(
+        prev.elements.filter((el) => ids.includes(el.id) && !el.isLocked).map((el) => el.id),
+      );
+      if (targetIds.size === 0) {
+        return prev;
+      }
+      return {
+        ...prev,
+        elements: prev.elements.filter((el) => !targetIds.has(el.id)),
+      };
+    }),
 
   nudgeElements: (ids, deltaMm, pageWidthMm, pageHeightMm) =>
-    set((state) => {
-      const targetElements = state.template.elements.filter(
+    commitTemplateChange(set, (prev) => {
+      const targetElements = prev.elements.filter(
         (el) => ids.includes(el.id) && !el.isLocked,
       );
-      if (targetElements.length === 0) return state;
+      if (targetElements.length === 0) return prev;
 
       const moved = calculateMultiElementMove(
         targetElements.map((el) => ({ id: el.id, initialBounds: el.bounds })),
@@ -461,13 +318,12 @@ export const useTemplateStore = create<TemplateState>((set) => ({
 
       const moveMap = new Map(moved.map((m) => [m.id, m.bounds]));
       return {
-        template: {
-          ...state.template,
-          elements: state.template.elements.map((el) => {
-            const newBounds = moveMap.get(el.id);
-            return newBounds ? { ...el, bounds: newBounds } : el;
-          }),
-        },
+        ...prev,
+        elements: prev.elements.map((el) => {
+          const newBounds = moveMap.get(el.id);
+          return newBounds ? { ...el, bounds: newBounds } : el;
+        }),
       };
     }),
 }));
+

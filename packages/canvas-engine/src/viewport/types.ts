@@ -37,5 +37,6 @@ export type GridSizeMm = 5 | 10;
 export interface GridConfig {
   visible: boolean;
   sizeMm: GridSizeMm;
+  snapToGrid?: boolean;
 }
 

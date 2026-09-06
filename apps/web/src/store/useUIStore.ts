@@ -18,6 +18,7 @@ interface UIState extends ViewportState {
   isDragging: boolean;
   gridVisible: boolean;
   gridSizeMm: GridSizeMm;
+  snapToGrid: boolean;
   cursorPosMm: Point | null;
 
   // Selection & Manipulation State
@@ -37,6 +38,8 @@ interface UIState extends ViewportState {
   setIsDragging: (dragging: boolean) => void;
   toggleGrid: () => void;
   setGridSizeMm: (size: GridSizeMm) => void;
+  toggleSnapToGrid: () => void;
+  setSnapToGrid: (snap: boolean) => void;
   setCursorPosMm: (pos: Point | null) => void;
   fitToScreen: (pageWidthMm: number, pageHeightMm: number) => void;
   zoomIn: () => void;
@@ -64,6 +67,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isDragging: false,
   gridVisible: true,
   gridSizeMm: 10,
+  snapToGrid: true,
   cursorPosMm: null,
 
   selectedElementIds: [],
@@ -98,6 +102,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   toggleGrid: () => set((state) => ({ gridVisible: !state.gridVisible })),
 
   setGridSizeMm: (size) => set({ gridSizeMm: size }),
+
+  toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
+
+  setSnapToGrid: (snap) => set({ snapToGrid: snap }),
 
   setCursorPosMm: (pos) => set({ cursorPosMm: pos }),
 

@@ -12,7 +12,37 @@ export const MAX_ZOOM = 10.0;
  * Clamps zoom level to the supported bounds [0.1, 10.0].
  */
 export function clampZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return 1.0;
   return Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM);
+}
+
+/**
+ * Normalizes wheel delta across devices (notched mouse wheel, trackpad, line/page modes).
+ */
+export function normalizeWheelDelta(deltaY: number, deltaMode = 0): number {
+  let delta = Number.isFinite(deltaY) ? deltaY : 0;
+  if (deltaMode === 1) {
+    // DOM_DELTA_LINE: 1 line is ~33.33px, so standard 3 lines = 100px (1 standard mouse wheel notch)
+    delta *= 33.33;
+  } else if (deltaMode === 2) {
+    // DOM_DELTA_PAGE
+    delta *= 100;
+  }
+  return delta;
+}
+
+/**
+ * Calculates a smooth, non-jumping zoom factor from a normalized wheel delta.
+ * - 100px of wheel delta corresponds to the standard 1.15x notch step.
+ * - Smooth continuous trackpad scrolls scale proportionally with zero exponential runaway.
+ * - Clamps single-frame zoom factor to [0.65, 1.50] to eliminate high-velocity jumps.
+ */
+export function calculateWheelZoomFactor(normalizedDelta: number): number {
+  if (!Number.isFinite(normalizedDelta) || normalizedDelta === 0) {
+    return 1.0;
+  }
+  const rawFactor = Math.pow(1.15, -normalizedDelta / 100);
+  return Math.max(0.65, Math.min(1.5, rawFactor));
 }
 
 /**
@@ -67,15 +97,20 @@ export function calculateZoomAtPoint(
   cursorScreenPx: Point,
 ): ViewportState {
   const clampedZoom = clampZoom(targetZoom);
-  if (clampedZoom === current.zoom) {
+  const currentZoom = Number.isFinite(current.zoom) && current.zoom > 0 ? current.zoom : 1.0;
+  if (clampedZoom === currentZoom) {
     return current;
   }
 
-  const zoomRatio = clampedZoom / current.zoom;
+  const zoomRatio = clampedZoom / currentZoom;
+  const cursorX = Number.isFinite(cursorScreenPx.x) ? cursorScreenPx.x : 0;
+  const cursorY = Number.isFinite(cursorScreenPx.y) ? cursorScreenPx.y : 0;
+  const currentPanX = Number.isFinite(current.panX) ? current.panX : 0;
+  const currentPanY = Number.isFinite(current.panY) ? current.panY : 0;
 
   // New pan coordinates ensure the canvas point under cursor remains fixed
-  const newPanX = cursorScreenPx.x - (cursorScreenPx.x - current.panX) * zoomRatio;
-  const newPanY = cursorScreenPx.y - (cursorScreenPx.y - current.panY) * zoomRatio;
+  const newPanX = cursorX - (cursorX - currentPanX) * zoomRatio;
+  const newPanY = cursorY - (cursorY - currentPanY) * zoomRatio;
 
   return {
     ...current,
@@ -92,10 +127,12 @@ export function calculatePan(
   current: ViewportState,
   deltaScreenPx: Point,
 ): ViewportState {
+  const dx = Number.isFinite(deltaScreenPx.x) ? deltaScreenPx.x : 0;
+  const dy = Number.isFinite(deltaScreenPx.y) ? deltaScreenPx.y : 0;
   return {
     ...current,
-    panX: current.panX + deltaScreenPx.x,
-    panY: current.panY + deltaScreenPx.y,
+    panX: current.panX + dx,
+    panY: current.panY + dy,
   };
 }
 

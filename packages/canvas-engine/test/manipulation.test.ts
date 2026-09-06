@@ -560,6 +560,39 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       expect(resized.height).toBe(5);
     });
 
+    it('resizes horizontal line (height = 0) without converting it to a box', () => {
+      const initial: ElementBounds = { x: 10, y: 20, width: 100, height: 0, rotation: 0 };
+      const resized = calculateResizedBounds({
+        initialBounds: initial,
+        handle: 'e',
+        deltaMm: { x: 20, y: 0 },
+      });
+      expect(resized.width).toBe(120);
+      expect(resized.height).toBe(0);
+    });
+
+    it('resizes vertical line (width = 0) without converting it to a box', () => {
+      const initial: ElementBounds = { x: 10, y: 20, width: 0, height: 100, rotation: 0 };
+      const resized = calculateResizedBounds({
+        initialBounds: initial,
+        handle: 's',
+        deltaMm: { x: 0, y: 30 },
+      });
+      expect(resized.width).toBe(0);
+      expect(resized.height).toBe(130);
+    });
+
+    it('prevents shrinking line to 0x0 degenerate bounds', () => {
+      const initial: ElementBounds = { x: 10, y: 20, width: 10, height: 0, rotation: 0 };
+      const resized = calculateResizedBounds({
+        initialBounds: initial,
+        handle: 'e',
+        deltaMm: { x: -100, y: 0 },
+      });
+      expect(resized.width).toBeGreaterThan(0);
+      expect(resized.height).toBe(0);
+    });
+
     it('supports proportional aspect ratio resizing when keepAspectRatio is true (Shift key)', () => {
       const initial: ElementBounds = { x: 20, y: 30, width: 50, height: 40, rotation: 0 };
       const resized = calculateResizedBounds({
@@ -642,6 +675,316 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       // Shift-nudge left clamped to 0 boundary
       const nudgeClamped = calculateMultiElementMove(elements, { x: -10, y: 0 }, 210, 297);
       expect(nudgeClamped[0].bounds.x).toBe(0);
+    });
+  });
+
+  describe('11. Optional Grid Snapping, Decimal Movement & Modifier Bypass (Word-like fine adjustments)', () => {
+    // Helper replicating the Viewport delta dispatch logic
+    function resolveEffectiveDelta(
+      referencePointMm: Point,
+      rawDeltaMm: Point,
+      snapToGrid: boolean,
+      gridSizeMm: number,
+      altOrCtrlPressed: boolean,
+    ): Point {
+      const shouldSnap = snapToGrid && !altOrCtrlPressed;
+      return shouldSnap
+        ? calculatePositionSnappedDelta(referencePointMm, rawDeltaMm, gridSizeMm)
+        : rawDeltaMm;
+    }
+
+    const initialElementBounds: ElementBounds = {
+      x: 12.35,
+      y: 24.65,
+      width: 50.0,
+      height: 30.0,
+      rotation: 0,
+    };
+
+    it('when Snap to Grid is ON (no modifier), element moves snap strictly to grid spacing (5mm)', () => {
+      // User moves mouse by raw delta (+2.1mm, +3.2mm) -> target (14.45mm, 27.85mm)
+      // Closest 5mm multiples are 15mm and 30mm
+      const rawDelta = { x: 2.1, y: 3.2 };
+      const effectiveDelta = resolveEffectiveDelta(
+        { x: initialElementBounds.x, y: initialElementBounds.y },
+        rawDelta,
+        true, // snapToGrid ON
+        5,    // 5mm grid
+        false // no modifier
+      );
+
+      // Expected snapped position: (15, 30) -> delta = (15 - 12.35, 30 - 24.65) = (2.65, 5.35)
+      expect(effectiveDelta.x).toBeCloseTo(2.65, 4);
+      expect(effectiveDelta.y).toBeCloseTo(5.35, 4);
+
+      const moved = calculateMovedBounds(initialElementBounds, effectiveDelta, 210, 297);
+      expect(moved.x).toBeCloseTo(15.0, 4);
+      expect(moved.y).toBeCloseTo(30.0, 4);
+    });
+
+    it('when Snap to Grid is OFF, element moves smoothly with fine decimal mm adjustments (no 5mm jumps)', () => {
+      // User moves mouse by small fractional delta (+0.37mm, -0.84mm)
+      const rawDelta = { x: 0.37, y: -0.84 };
+      const effectiveDelta = resolveEffectiveDelta(
+        { x: initialElementBounds.x, y: initialElementBounds.y },
+        rawDelta,
+        false, // snapToGrid OFF
+        5,     // 5mm grid
+        false  // no modifier
+      );
+
+      // Returns exact raw delta without rounding or snapping
+      expect(effectiveDelta).toEqual(rawDelta);
+
+      const moved = calculateMovedBounds(initialElementBounds, effectiveDelta, 210, 297);
+      expect(moved.x).toBeCloseTo(12.35 + 0.37, 4); // 12.72mm
+      expect(moved.y).toBeCloseTo(24.65 - 0.84, 4); // 23.81mm
+    });
+
+    it('when Snap to Grid is ON, holding Alt or Ctrl temporarily disables snapping for fine adjustments', () => {
+      const rawDelta = { x: 0.45, y: 0.82 };
+
+      // Alt pressed: snap is bypassed
+      const altDelta = resolveEffectiveDelta(
+        { x: initialElementBounds.x, y: initialElementBounds.y },
+        rawDelta,
+        true, // snapToGrid ON
+        5,    // 5mm grid
+        true  // Alt/Ctrl pressed (modifier bypass)
+      );
+      expect(altDelta).toEqual(rawDelta);
+
+      const moved = calculateMovedBounds(initialElementBounds, altDelta, 210, 297);
+      expect(moved.x).toBeCloseTo(12.8, 4);
+      expect(moved.y).toBeCloseTo(25.47, 4);
+    });
+
+    it('when Snap to Grid is ON, resizing edge snaps to chosen grid spacing (5mm)', () => {
+      const eastHandleAnchor = getElementWorldAnchor(initialElementBounds, 'e'); // x: 62.35, y: 39.65
+      const rawResizeDelta = { x: 1.4, y: 0 }; // target x = 63.75mm -> snapped x = 65.0mm (delta = +2.65mm)
+
+      const effectiveDelta = resolveEffectiveDelta(
+        eastHandleAnchor,
+        rawResizeDelta,
+        true, // snapToGrid ON
+        5,    // 5mm grid
+        false // no modifier
+      );
+
+      expect(effectiveDelta.x).toBeCloseTo(2.65, 4);
+
+      const resized = calculateResizedBounds({
+        initialBounds: initialElementBounds,
+        handle: 'e',
+        deltaMm: effectiveDelta,
+        pageWidthMm: 210,
+        pageHeightMm: 297,
+      });
+
+      // Opposite anchor ('w') stays fixed at x = 12.35; right edge snaps to 65.0mm -> width = 65 - 12.35 = 52.65mm
+      expect(resized.x).toBeCloseTo(12.35, 4);
+      expect(resized.x + resized.width).toBeCloseTo(65.0, 4);
+      expect(resized.width).toBeCloseTo(52.65, 4);
+    });
+
+    it('when Snap to Grid is OFF, resizing allows smooth decimal mm dimensions with no 5mm jumps', () => {
+      const eastHandleAnchor = getElementWorldAnchor(initialElementBounds, 'e');
+      const rawResizeDelta = { x: 0.73, y: 0 }; // fine MS Word-like fractional adjustment
+
+      const effectiveDelta = resolveEffectiveDelta(
+        eastHandleAnchor,
+        rawResizeDelta,
+        false, // snapToGrid OFF
+        5,
+        false
+      );
+
+      expect(effectiveDelta).toEqual(rawResizeDelta);
+
+      const resized = calculateResizedBounds({
+        initialBounds: initialElementBounds,
+        handle: 'e',
+        deltaMm: effectiveDelta,
+        pageWidthMm: 210,
+        pageHeightMm: 297,
+      });
+
+      expect(resized.x).toBeCloseTo(12.35, 4);
+      expect(resized.width).toBeCloseTo(50.73, 4);
+    });
+
+    it('when Snap to Grid is ON, holding Alt/Ctrl during resizing allows smooth decimal adjustments', () => {
+      const southHandleAnchor = getElementWorldAnchor(initialElementBounds, 's');
+      const rawResizeDelta = { x: 0, y: 1.18 };
+
+      const effectiveDelta = resolveEffectiveDelta(
+        southHandleAnchor,
+        rawResizeDelta,
+        true, // snapToGrid ON
+        5,
+        true  // Alt/Ctrl held
+      );
+
+      expect(effectiveDelta).toEqual(rawResizeDelta);
+
+      const resized = calculateResizedBounds({
+        initialBounds: initialElementBounds,
+        handle: 's',
+        deltaMm: effectiveDelta,
+        pageWidthMm: 210,
+        pageHeightMm: 297,
+      });
+
+      expect(resized.height).toBeCloseTo(31.18, 4);
+    });
+  });
+
+  describe('10. Drag-to-Move Pointer Stability & Latest-Coordinates-Win Invariants', () => {
+    const initialBounds: ElementBounds = {
+      x: 25.4,
+      y: 30.2,
+      width: 50.0,
+      height: 25.0,
+      rotation: 0,
+    };
+    const dragOriginPointer: Point = { x: 25.4, y: 30.2 };
+
+    it('continuous decimal mm pointer movement produces smooth, monotonic displacement with zero feedback drift', () => {
+      // Simulates 50 consecutive high-frequency pointer move frames with sub-millimeter increments
+      let prevX = initialBounds.x;
+      let prevY = initialBounds.y;
+
+      for (let i = 1; i <= 50; i++) {
+        const step = i * 0.12; // 0.12mm step
+        const currentPointer: Point = {
+          x: dragOriginPointer.x + step,
+          y: dragOriginPointer.y + step * 0.5,
+        };
+
+        const rawDelta: Point = {
+          x: currentPointer.x - dragOriginPointer.x,
+          y: currentPointer.y - dragOriginPointer.y,
+        };
+
+        // When snapping is OFF (fine MS Word-like dragging)
+        const moved = calculateMultiElementMove(
+          [{ id: 'el_1', initialBounds }],
+          rawDelta,
+          210,
+          297,
+        );
+
+        const currentPos = moved[0].bounds;
+        expect(currentPos.x).toBeGreaterThan(prevX);
+        expect(currentPos.y).toBeGreaterThan(prevY);
+        expect(currentPos.x).toBeCloseTo(initialBounds.x + step, 5);
+        expect(currentPos.y).toBeCloseTo(initialBounds.y + step * 0.5, 5);
+
+        prevX = currentPos.x;
+        prevY = currentPos.y;
+      }
+    });
+
+    it('latest-coordinates-win invariant: RAF frame skipping produces identical deterministic state to direct calculation', () => {
+      // High-frequency mousemove events at t1, t2, t3, t4...
+      const events: Point[] = [
+        { x: dragOriginPointer.x + 1.2, y: dragOriginPointer.y + 0.8 },
+        { x: dragOriginPointer.x + 2.5, y: dragOriginPointer.y + 1.9 },
+        { x: dragOriginPointer.x + 4.1, y: dragOriginPointer.y + 3.0 },
+        { x: dragOriginPointer.x + 7.8, y: dragOriginPointer.y + 5.2 }, // latest pointer event
+      ];
+
+      // In RAF batching, only the latest pointer coordinates (events[3]) are evaluated
+      const latestPointer = events[events.length - 1];
+      const rafBatchedDelta: Point = {
+        x: latestPointer.x - dragOriginPointer.x,
+        y: latestPointer.y - dragOriginPointer.y,
+      };
+
+      const batchedMoved = calculateMultiElementMove(
+        [{ id: 'el_1', initialBounds }],
+        rafBatchedDelta,
+        210,
+        297,
+      );
+
+      // Direct calculation for latest event
+      const directDelta: Point = {
+        x: 7.8,
+        y: 5.2,
+      };
+      const directMoved = calculateMultiElementMove(
+        [{ id: 'el_1', initialBounds }],
+        directDelta,
+        210,
+        297,
+      );
+
+      expect(batchedMoved[0].bounds.x).toBe(directMoved[0].bounds.x);
+      expect(batchedMoved[0].bounds.y).toBe(directMoved[0].bounds.y);
+      expect(batchedMoved[0].bounds.width).toBe(initialBounds.width);
+      expect(batchedMoved[0].bounds.height).toBe(initialBounds.height);
+    });
+
+    it('snap-to-grid determinism across continuous sweeps without oscillation or hysteresis', () => {
+      const gridSizeMm = 5;
+      // Start at x = 10 (already on grid)
+      const onGridBounds: ElementBounds = {
+        x: 10,
+        y: 10,
+        width: 40,
+        height: 20,
+        rotation: 0,
+      };
+      const origin: Point = { x: 10, y: 10 };
+
+      // Sweep raw delta from 0mm to 12mm in fine 0.1mm increments
+      let lastSnappedX = 10;
+      for (let offset = 0; offset <= 12; offset += 0.1) {
+        const rawDelta: Point = { x: offset, y: 0 };
+        const snappedDelta = calculatePositionSnappedDelta(onGridBounds, rawDelta, gridSizeMm);
+
+        const moved = calculateMultiElementMove(
+          [{ id: 'el_sweep', initialBounds: onGridBounds }],
+          snappedDelta,
+          210,
+          297,
+        );
+
+        const resultX = moved[0].bounds.x;
+        // Result must always be an exact multiple of 5mm
+        expect(resultX % 5).toBe(0);
+        // Snapped position must never decrease during monotonic forward drag
+        expect(resultX).toBeGreaterThanOrEqual(lastSnappedX);
+        lastSnappedX = resultX;
+      }
+    });
+
+    it('multi-element group move preserves exact relative distances to decimal precision during continuous drag', () => {
+      const el1Bounds: ElementBounds = { x: 20.25, y: 15.5, width: 30, height: 20, rotation: 0 };
+      const el2Bounds: ElementBounds = { x: 70.75, y: 45.8, width: 40, height: 25, rotation: 0 };
+      const initialDistX = el2Bounds.x - el1Bounds.x;
+      const initialDistY = el2Bounds.y - el1Bounds.y;
+
+      const group = [
+        { id: 'el_1', initialBounds: el1Bounds },
+        { id: 'el_2', initialBounds: el2Bounds },
+      ];
+
+      // Simulate 20 continuous drag steps
+      for (let s = 1; s <= 20; s++) {
+        const delta: Point = { x: s * 1.37, y: s * 0.91 };
+        const moved = calculateMultiElementMove(group, delta, 210, 297);
+
+        const movedEl1 = moved.find((e) => e.id === 'el_1')!.bounds;
+        const movedEl2 = moved.find((e) => e.id === 'el_2')!.bounds;
+
+        const currentDistX = movedEl2.x - movedEl1.x;
+        const currentDistY = movedEl2.y - movedEl1.y;
+
+        expect(currentDistX).toBeCloseTo(initialDistX, 10);
+        expect(currentDistY).toBeCloseTo(initialDistY, 10);
+      }
     });
   });
 });

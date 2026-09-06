@@ -3,6 +3,7 @@ import { MousePointer, Lock, Trash2, Layers, Sliders, EyeOff } from 'lucide-reac
 import { calculateMultiElementBoundingBox, calculateMultiElementMove, type ElementBounds } from '@uts/canvas-engine';
 import { useUIStore } from '../../store/useUIStore.js';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { useHistoryStore } from '../../store/history/useHistoryStore.js';
 import { ElementInfoSection } from './ElementInfoSection.js';
 import { PositionSection } from './PositionSection.js';
 import { AppearanceSection } from './AppearanceSection.js';
@@ -258,11 +259,13 @@ export const InspectorPanel: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        useHistoryStore.getState().beginHistoryTransaction();
                         selectedElements.forEach((el) => {
                           if (allLocked ? el.isLocked : !el.isLocked) {
                             toggleElementLock(el.id);
                           }
                         });
+                        useHistoryStore.getState().commitHistoryTransaction();
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-zinc-900 border border-studio-border text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
                     >
