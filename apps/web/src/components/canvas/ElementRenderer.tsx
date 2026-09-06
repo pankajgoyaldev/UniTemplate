@@ -40,6 +40,8 @@ function renderDescriptorToJsx(
     else if (k === 'text-anchor') reactProps.textAnchor = v;
     else if (k === 'letter-spacing') reactProps.letterSpacing = v;
     else if (k === 'preserveAspectRatio') reactProps.preserveAspectRatio = v;
+    else if (k === 'textLength') reactProps.textLength = v;
+    else if (k === 'lengthAdjust') reactProps.lengthAdjust = v;
     else reactProps[k] = v;
   }
 

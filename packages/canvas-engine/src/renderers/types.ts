@@ -1,3 +1,8 @@
+/**
+ * SVG-based shared rendering foundation intended to maximize screen/print consistency.
+ * Exact browser font metrics and print CSS are handled during the print/export pipeline.
+ */
+
 import type { TemplateElement } from '@uts/core';
 
 export interface RenderContext {
@@ -19,18 +24,40 @@ export interface ElementRenderer<T extends TemplateElement = TemplateElement> {
 }
 
 /**
+ * Safely escapes characters for SVG/XML text nodes.
+ */
+export function escapeXmlText(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Safely escapes characters for SVG/XML attribute values.
+ */
+export function escapeXmlAttr(val: string | number): string {
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
  * Converts an SvgElementDescriptor to a valid SVG XML string.
  * Completely independent of React or DOM.
  */
 export function svgDescriptorToString(node: SvgElementDescriptor | string): string {
   if (typeof node === 'string') {
-    return node;
+    return escapeXmlText(node);
   }
 
   const { tag, attrs, children, innerHTML } = node;
   const attrEntries = Object.entries(attrs).filter(([, val]) => val !== undefined);
   const attrString = attrEntries
-    .map(([key, val]) => `${key}="${String(val).replace(/"/g, '&quot;')}"`)
+    .map(([key, val]) => `${key}="${escapeXmlAttr(val!)}"`)
     .join(' ');
 
   const openTag = attrString ? `<${tag} ${attrString}>` : `<${tag}>`;

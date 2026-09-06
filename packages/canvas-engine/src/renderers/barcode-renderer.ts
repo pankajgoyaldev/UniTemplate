@@ -1,3 +1,9 @@
+/**
+ * SVG-based shared rendering foundation intended to maximize screen/print consistency.
+ * Exact browser font metrics and print CSS are handled during the print/export pipeline.
+ * Isolated barcode generation engine wrapping bwip-js.
+ */
+
 import bwipjs from 'bwip-js';
 import {
   mmToPx,
@@ -6,6 +12,7 @@ import {
   type BarcodeType,
 } from '@uts/core';
 import {
+  escapeXmlText,
   svgDescriptorToString,
   type RenderContext,
   type SvgElementDescriptor,
@@ -15,6 +22,19 @@ export interface BarcodeVectorOutput {
   rawSvg: string;
   viewBox: string;
   innerContent: string;
+}
+
+/**
+ * Lightweight SVG sanitizer ensuring no executable script or malicious handler
+ * exists in barcode inner content.
+ */
+export function sanitizeSvgContent(rawSvg: string): string {
+  if (!rawSvg) return '';
+  return rawSvg
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\bon\w+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\bon\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/href\s*=\s*['"]\s*javascript:[^'"]*['"]/gi, 'href=""');
 }
 
 /**
@@ -41,20 +61,21 @@ export function mapBarcodeTypeToBcid(type: BarcodeType): string {
 
 /**
  * Generates an SVG vector barcode representation using bwip-js.
- * Fully isolated behind this function with graceful error fallback.
+ * Fully isolated behind this function with graceful error fallback and sanitization.
  */
 export function generateBarcodeVector(element: BarcodeElement): BarcodeVectorOutput {
   const bcid = mapBarcodeTypeToBcid(element.barcodeType);
-  const text = element.content || '12345678';
+  const text = element.content !== undefined && element.content !== null ? String(element.content) : '';
 
   try {
     const toSvgFn = (bwipjs as any).default?.toSVG || (bwipjs as any).toSVG || (bwipjs as any);
 
+    const is2D = element.barcodeType === 'qr' || element.barcodeType === 'datamatrix';
     const options: Record<string, any> = {
       bcid,
-      text,
+      text: text || '000000',
       scale: 3,
-      includetext: element.barcodeType !== 'qr' && element.barcodeType !== 'datamatrix' && element.showText,
+      includetext: !is2D && Boolean(element.showText),
       textxalign: 'center',
     };
 
@@ -70,7 +91,7 @@ export function generateBarcodeVector(element: BarcodeElement): BarcodeVectorOut
 
     // Extract inner content inside <svg ...>...</svg>
     const innerMatch = rawSvg.replace(/<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-    const innerContent = innerMatch || rawSvg;
+    const innerContent = sanitizeSvgContent(innerMatch || rawSvg);
 
     return {
       rawSvg,
@@ -78,9 +99,10 @@ export function generateBarcodeVector(element: BarcodeElement): BarcodeVectorOut
       innerContent,
     };
   } catch (err) {
-    // Fallback placeholder on encoding error (e.g. invalid EAN-13 checksum)
-    const errorMsg = (err as Error).message || 'Barcode Error';
-    const fallbackSvg = `<rect width="100%" height="100%" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/><text x="50%" y="50%" fill="#dc2626" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">${errorMsg}</text>`;
+    // Fallback placeholder on encoding error (e.g. invalid EAN-13 checksum, bad characters)
+    const rawError = (err as Error).message || 'Barcode Error';
+    const errorMsg = escapeXmlText(rawError);
+    const fallbackSvg = `<rect width="100%" height="100%" fill="#fee2e2" stroke="#ef4444" stroke-width="1"/><text x="50%" y="50%" fill="#dc2626" font-size="8" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">${errorMsg}</text>`;
     return {
       rawSvg: `<svg viewBox="0 0 100 50">${fallbackSvg}</svg>`,
       viewBox: '0 0 100 50',
@@ -98,8 +120,8 @@ export function renderBarcodeElement(
 
   const xPx = mmToPx(element.bounds.x, dpi) * zoom;
   const yPx = mmToPx(element.bounds.y, dpi) * zoom;
-  const widthPx = mmToPx(element.bounds.width, dpi) * zoom;
-  const heightPx = mmToPx(element.bounds.height, dpi) * zoom;
+  const widthPx = Math.max(0, mmToPx(element.bounds.width, dpi) * zoom);
+  const heightPx = Math.max(0, mmToPx(element.bounds.height, dpi) * zoom);
 
   const { viewBox, innerContent } = generateBarcodeVector(element);
 
@@ -123,7 +145,7 @@ export function renderBarcodeElement(
     innerHTML: innerContent,
   };
 
-  if (element.bounds.rotation && element.bounds.rotation !== 0) {
+  if (element.bounds.rotation && element.bounds.rotation % 360 !== 0) {
     const centerX = xPx + widthPx / 2;
     const centerY = yPx + heightPx / 2;
     return {
@@ -144,4 +166,5 @@ export function renderBarcodeElementToString(
 ): string {
   return svgDescriptorToString(renderBarcodeElement(element, context));
 }
+
 

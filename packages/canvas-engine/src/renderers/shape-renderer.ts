@@ -1,3 +1,8 @@
+/**
+ * SVG-based shared rendering foundation intended to maximize screen/print consistency.
+ * Exact browser font metrics and print CSS are handled during the print/export pipeline.
+ */
+
 import {
   mmToPx,
   DEFAULT_SCREEN_DPI,
@@ -13,7 +18,7 @@ export function getStrokeDashArray(
   dashType: 'solid' | 'dashed' | 'dotted' | undefined,
   strokeWidthPx: number,
 ): string | undefined {
-  if (!dashType || dashType === 'solid') return undefined;
+  if (!dashType || dashType === 'solid' || strokeWidthPx <= 0) return undefined;
   if (dashType === 'dashed') {
     return `${Math.max(4, strokeWidthPx * 4)} ${Math.max(2, strokeWidthPx * 2)}`;
   }
@@ -32,16 +37,18 @@ export function renderShapeElement(
 
   const xPx = mmToPx(element.bounds.x, dpi) * zoom;
   const yPx = mmToPx(element.bounds.y, dpi) * zoom;
-  const widthPx = mmToPx(element.bounds.width, dpi) * zoom;
-  const heightPx = mmToPx(element.bounds.height, dpi) * zoom;
+  const widthPx = Math.max(0, mmToPx(element.bounds.width, dpi) * zoom);
+  const heightPx = Math.max(0, mmToPx(element.bounds.height, dpi) * zoom);
 
-  const strokeWidthPx = mmToPx(element.strokeWidthMm, dpi) * zoom;
-  const cornerRadiusPx = mmToPx(element.cornerRadiusMm ?? 0, dpi) * zoom;
+  const strokeWidthPx = Math.max(0, mmToPx(element.strokeWidthMm, dpi) * zoom);
+  const maxCornerRadius = Math.min(widthPx, heightPx) / 2;
+  const rawCornerRadiusPx = mmToPx(element.cornerRadiusMm ?? 0, dpi) * zoom;
+  const cornerRadiusPx = Math.max(0, Math.min(rawCornerRadiusPx, maxCornerRadius));
   const strokeDasharray = getStrokeDashArray(element.strokeDash, strokeWidthPx);
 
   const commonAttrs: Record<string, string | number | undefined> = {
     fill: element.fillColor,
-    stroke: element.strokeColor,
+    stroke: strokeWidthPx > 0 ? element.strokeColor : 'none',
     'stroke-width': strokeWidthPx,
     'stroke-dasharray': strokeDasharray,
     'data-element-id': element.id,
@@ -107,7 +114,7 @@ export function renderShapeElement(
       break;
   }
 
-  if (element.bounds.rotation && element.bounds.rotation !== 0) {
+  if (element.bounds.rotation && element.bounds.rotation % 360 !== 0) {
     const centerX = xPx + widthPx / 2;
     const centerY = yPx + heightPx / 2;
     return {
@@ -128,4 +135,5 @@ export function renderShapeElementToString(
 ): string {
   return svgDescriptorToString(renderShapeElement(element, context));
 }
+
 

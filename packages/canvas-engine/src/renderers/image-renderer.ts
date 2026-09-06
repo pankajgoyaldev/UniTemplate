@@ -1,3 +1,8 @@
+/**
+ * SVG-based shared rendering foundation intended to maximize screen/print consistency.
+ * Exact browser font metrics and print CSS are handled during the print/export pipeline.
+ */
+
 import {
   mmToPx,
   DEFAULT_SCREEN_DPI,
@@ -30,13 +35,30 @@ export function renderImageElement(
 
   const xPx = mmToPx(element.bounds.x, dpi) * zoom;
   const yPx = mmToPx(element.bounds.y, dpi) * zoom;
-  const widthPx = mmToPx(element.bounds.width, dpi) * zoom;
-  const heightPx = mmToPx(element.bounds.height, dpi) * zoom;
+  const widthPx = Math.max(0, mmToPx(element.bounds.width, dpi) * zoom);
+  const heightPx = Math.max(0, mmToPx(element.bounds.height, dpi) * zoom);
 
   // Resolve image source URL from assetRef via context resolver or direct href
-  const href = context.assetResolver
-    ? context.assetResolver(element.assetRef) || element.assetRef
-    : element.assetRef;
+  const rawRef = (element.assetRef ?? '').trim();
+  let href = rawRef;
+
+  if (context.assetResolver && rawRef) {
+    try {
+      const resolved = context.assetResolver(rawRef);
+      if (resolved !== undefined && resolved !== null) {
+        href = resolved;
+      }
+    } catch {
+      // Safe fallback on resolver error
+      href = rawRef;
+    }
+  }
+
+  // Strictly clamp opacity between 0.0 and 1.0, handling NaN
+  const rawOpacity = typeof element.opacity === 'number' && Number.isFinite(element.opacity)
+    ? element.opacity
+    : 1;
+  const opacity = Math.max(0, Math.min(1, rawOpacity));
 
   const preserveAspectRatio = getSvgPreserveAspectRatio(element.fit);
 
@@ -49,7 +71,7 @@ export function renderImageElement(
       height: heightPx,
       href,
       preserveAspectRatio,
-      opacity: Math.max(0, Math.min(1, element.opacity)),
+      opacity,
       'data-element-id': element.id,
       'data-element-type': 'image',
       'data-asset-ref': element.assetRef,
@@ -57,7 +79,7 @@ export function renderImageElement(
     },
   };
 
-  if (element.bounds.rotation && element.bounds.rotation !== 0) {
+  if (element.bounds.rotation && element.bounds.rotation % 360 !== 0) {
     const centerX = xPx + widthPx / 2;
     const centerY = yPx + heightPx / 2;
     return {
@@ -78,4 +100,5 @@ export function renderImageElementToString(
 ): string {
   return svgDescriptorToString(renderImageElement(element, context));
 }
+
 

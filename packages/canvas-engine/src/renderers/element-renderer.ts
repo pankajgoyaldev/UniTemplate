@@ -1,3 +1,8 @@
+/**
+ * SVG-based shared rendering foundation intended to maximize screen/print consistency.
+ * Exact browser font metrics and print CSS are handled during the print/export pipeline.
+ */
+
 import type { TemplateElement } from '@uts/core';
 import type { RenderContext, SvgElementDescriptor } from './types.js';
 import { renderTextElement } from './text-renderer.js';
@@ -60,7 +65,7 @@ export function renderTemplateElements(
   context: RenderContext,
 ): SvgElementDescriptor[] {
   // Sort elements by zIndex ascending (lower zIndex rendered first, higher on top)
-  const sorted = [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+  const sorted = [...elements].sort((a, b) => (Number(a.zIndex) || 0) - (Number(b.zIndex) || 0));
   return sorted.map((el) => renderElement(el, context));
 }
 
@@ -75,4 +80,5 @@ export function renderTemplateElementsToString(
     .map(svgDescriptorToString)
     .join('\n');
 }
+
 
