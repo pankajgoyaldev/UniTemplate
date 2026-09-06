@@ -75,3 +75,4 @@ export function renderTemplateElementsToString(
     .map(svgDescriptorToString)
     .join('\n');
 }
+

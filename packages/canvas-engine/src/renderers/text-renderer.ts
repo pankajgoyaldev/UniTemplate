@@ -152,3 +152,4 @@ export function renderTextElementToString(
 ): string {
   return svgDescriptorToString(renderTextElement(element, context));
 }
+

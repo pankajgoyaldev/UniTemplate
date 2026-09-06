@@ -144,3 +144,4 @@ export function renderBarcodeElementToString(
 ): string {
   return svgDescriptorToString(renderBarcodeElement(element, context));
 }
+

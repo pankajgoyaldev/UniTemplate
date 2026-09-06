@@ -19,3 +19,4 @@ declare module 'bwip-js' {
 
   export default bwipjs;
 }
+

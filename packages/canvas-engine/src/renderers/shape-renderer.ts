@@ -128,3 +128,4 @@ export function renderShapeElementToString(
 ): string {
   return svgDescriptorToString(renderShapeElement(element, context));
 }
+

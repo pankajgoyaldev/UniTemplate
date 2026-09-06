@@ -69,3 +69,4 @@ export const ElementRenderer: React.FC<ElementRendererProps> = ({
   const descriptor = renderElement(element, context);
   return <>{renderDescriptorToJsx(descriptor, `el-${element.id}`)}</>;
 };
+

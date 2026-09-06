@@ -78,3 +78,4 @@ export function renderImageElementToString(
 ): string {
   return svgDescriptorToString(renderImageElement(element, context));
 }
+
