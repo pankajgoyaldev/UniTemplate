@@ -5,6 +5,7 @@
   "description": "Universe Template Studio - Web-first Template Designer & Document Generation Engine",
   "packageManager": "pnpm@12.3.4",
   "scripts": {
+    "dev": "pnpm --filter @uts/web dev",
     "build": "pnpm -r run build",
     "test": "vitest run",
     "lint": "pnpm -r --if-present run lint",
