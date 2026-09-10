@@ -6,6 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
+    "lint": "tsc --noEmit",
     "test": "node ../core/node_modules/vitest/vitest.mjs run",
     "test:watch": "node ../core/node_modules/vitest/vitest.mjs"
   },

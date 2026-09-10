@@ -2,7 +2,7 @@
 
 **UniTemplate** is a professional template design and bulk document generation studio built for precision, local-first privacy, and high-performance document workflows.
 
-The primary objective of UniTemplate is to allow users to import existing designs (such as PDF, PNG, JPG, or SVG backgrounds), overlay and position dynamic fields with physical millimeter precision, and generate batches of populated documents from structured Excel/CSV data sources.
+The vision of UniTemplate is to allow users to import existing designs (such as PDF, PNG, JPG, or SVG backgrounds), overlay and position dynamic fields with physical millimeter precision, and generate batches of populated documents from structured Excel/CSV data sources. Currently, the studio provides the core millimeter-accurate visual designer, vector rendering engine, and session recovery, with background import and data binding actively on the roadmap.
 
 > [!NOTE]
 > **Product Direction:** UniTemplate is **not** a general-purpose graphics or marketing design tool (like Canva). It is specialized for structured, repeatable document templates (invoices, certificates, ID cards, shipping labels, tags) and high-volume document compilation from data.
@@ -18,7 +18,8 @@ UniTemplate is engineered as a modern, local-first TypeScript monorepo using **p
 │   └── web/                   # Web studio application (React 18, Vite, Tailwind CSS)
 └── packages/
     ├── core/                  # Core domain logic, Zod AST schemas, units, .uts container packager
-    └── canvas-engine/         # SVG renderers, coordinate math, hit-testing, resize/drag manipulation
+    ├── canvas-engine/         # SVG renderers, coordinate math, hit-testing, resize/drag manipulation
+    └── adapters/              # Platform abstraction interfaces (storage and file system adapters)
 ```
 
 ### Technology Highlights
@@ -54,7 +55,7 @@ The following features are currently implemented and verified in the codebase:
 - **Text Elements:** Rich typography controls including font family, size (pt), weight, line height, letter spacing, horizontal alignment, and color.
 - **Vector Shapes:** Rectangles, ellipses, and horizontal/vertical line shapes with configurable fill, stroke width, stroke color, and corner radius.
 - **Image Elements:** Local bitmap rendering with aspect ratio preservation and asset resolution.
-- **Vector Barcodes:** Native 1D and 2D barcode generation supporting Code 128, QR Code, EAN-13, UPC-A, Data Matrix, and PDF417.
+- **Vector Barcodes:** Native 1D and 2D barcode generation supporting Code 128, EAN-13, UPC-A, Code 39, QR Code, and Data Matrix.
 
 ### 4. Canvas Manipulation & Editing
 - **Selection:** Single-click selection, multi-selection (Shift/Ctrl/Meta), and empty-canvas selection clearing.
@@ -143,13 +144,16 @@ document.uts (ZIP archive)
 │   ├── core/
 │   │   └── src/
 │   │       ├── ast/                 # Zod schemas, types, AST validation
-│   │       ├── package/             # serializeUts, parseUts (.uts packager)
-│   │       └── units/               # mmToPx, pxToMm, precision math
-│   └── canvas-engine/
+│   │       ├── math/                # mmToPx, pxToMm, precision math
+│   │       └── packager/            # serializeUts, parseUts (.uts packager)
+│   ├── canvas-engine/
+│   │   └── src/
+│   │       ├── manipulation/        # hit-testing, resize algorithms, multi-element move, grid snap
+│   │       ├── renderers/           # SVG element renderers (Text, Shapes, Images, Barcodes)
+│   │       └── viewport/            # coordinate math, zoom calculations, ruler intervals
+│   └── adapters/
 │       └── src/
-│           ├── manipulation/        # hit-testing, resize algorithms, multi-element move, grid snap
-│           ├── renderers/           # SVG element renderers (Text, Shapes, Images, Barcodes)
-│           └── viewport/            # coordinate math, zoom calculations, ruler intervals
+│           └── index.ts             # Storage and file system adapter interfaces
 └── package.json
 ```
 
@@ -191,6 +195,7 @@ pnpm test
 # Build all packages in topological order
 pnpm --filter @uts/core build
 pnpm --filter @uts/canvas-engine build
+pnpm --filter @uts/adapters build
 pnpm --filter @uts/web build
 
 # Or run the workspace-wide build
