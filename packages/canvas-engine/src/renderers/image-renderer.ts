@@ -7,6 +7,7 @@ import {
   mmToPx,
   DEFAULT_SCREEN_DPI,
   type ImageElement,
+  type TraceBackground,
 } from '@uts/core';
 import {
   svgDescriptorToString,
@@ -99,6 +100,57 @@ export function renderImageElementToString(
   context: RenderContext,
 ): string {
   return svgDescriptorToString(renderImageElement(element, context));
+}
+
+export interface TraceBackgroundRenderOptions {
+  traceBackground: TraceBackground;
+  traceUrl: string;
+  pageWidthMm: number;
+  pageHeightMm: number;
+  zoom?: number;
+  dpi?: number;
+}
+
+/**
+ * Generates an SVG element descriptor for a trace background layer.
+ * The trace background is locked to page dimensions with pointer-events: none.
+ */
+export function renderTraceBackgroundDescriptor(
+  options: TraceBackgroundRenderOptions,
+): SvgElementDescriptor | null {
+  if (!options.traceBackground.enabled || !options.traceUrl) {
+    return null;
+  }
+  const dpi = options.dpi ?? DEFAULT_SCREEN_DPI;
+  const zoom = options.zoom ?? 1.0;
+  const scaledWidthPx = mmToPx(options.pageWidthMm, dpi) * zoom;
+  const scaledHeightPx = mmToPx(options.pageHeightMm, dpi) * zoom;
+  const opacity = Math.max(0, Math.min(1, options.traceBackground.opacity ?? 1));
+
+  return {
+    tag: 'image',
+    attrs: {
+      href: options.traceUrl,
+      x: 0,
+      y: 0,
+      width: scaledWidthPx,
+      height: scaledHeightPx,
+      preserveAspectRatio: 'xMidYMid meet',
+      opacity,
+      style: 'pointer-events: none',
+    },
+    children: [],
+  };
+}
+
+/**
+ * Generates an SVG string representation of a trace background layer.
+ */
+export function renderTraceBackgroundToString(
+  options: TraceBackgroundRenderOptions,
+): string {
+  const desc = renderTraceBackgroundDescriptor(options);
+  return desc ? svgDescriptorToString(desc) : '';
 }
 
 

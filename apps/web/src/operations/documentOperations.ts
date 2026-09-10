@@ -70,6 +70,7 @@ export function executeNewTemplate(confirmed = false): void {
     isDirty: false,
     assets: new Map(),
     hasSavedFile: false,
+    traceBackground: null,
   });
 }
 
@@ -136,6 +137,7 @@ export async function executeOpenTemplate(
   // 4. Verification succeeded - safely replace document
   useTemplateStore.getState().setTemplate(pkg.template);
   docStore.setAssets(pkg.assets);
+  docStore.setTraceBackgroundFile(pkg.traceBackground ?? null);
   const finalFilename = rawFilename || pkg.template.metadata.title || DEFAULT_DOCUMENT_NAME;
   docStore.setFilename(finalFilename);
   docStore.setFileHandle(rawHandle ?? null);
@@ -150,6 +152,7 @@ export async function executeOpenTemplate(
     isDirty: false,
     assets: pkg.assets,
     hasSavedFile: true,
+    traceBackground: pkg.traceBackground ?? null,
   });
 
   return true;
@@ -174,6 +177,8 @@ export async function executeSaveTemplate(): Promise<boolean> {
   try {
     const template = useTemplateStore.getState().template;
     const assets = docStore.assets;
+    const traceFile = template.traceBackground ? docStore.traceBackgroundFile : undefined;
+    const hasTrace = Boolean(traceFile && template.traceBackground?.enabled);
 
     const manifest: UtsManifest = {
       format: 'UTS_PACKAGE',
@@ -190,13 +195,14 @@ export async function executeSaveTemplate(): Promise<boolean> {
         unit: template.pageSettings.unit,
       },
       assetCount: assets.size,
-      hasTraceBackground: false,
+      hasTraceBackground: hasTrace,
     };
 
     const buffer = await serializeUts({
       manifest,
       template,
       assets,
+      traceBackground: traceFile ?? undefined,
     });
 
     const result = await browserFileIO.saveUts(buffer, docStore.filename, docStore.fileHandle);
@@ -220,6 +226,7 @@ export async function executeSaveTemplate(): Promise<boolean> {
       isDirty: false,
       assets: docStore.assets,
       hasSavedFile: true,
+      traceBackground: traceFile ?? null,
     });
 
     return true;
@@ -245,6 +252,8 @@ export async function executeSaveTemplateAs(): Promise<boolean> {
   try {
     const template = useTemplateStore.getState().template;
     const assets = docStore.assets;
+    const traceFile = template.traceBackground ? docStore.traceBackgroundFile : undefined;
+    const hasTrace = Boolean(traceFile && template.traceBackground?.enabled);
 
     const manifest: UtsManifest = {
       format: 'UTS_PACKAGE',
@@ -261,13 +270,14 @@ export async function executeSaveTemplateAs(): Promise<boolean> {
         unit: template.pageSettings.unit,
       },
       assetCount: assets.size,
-      hasTraceBackground: false,
+      hasTraceBackground: hasTrace,
     };
 
     const buffer = await serializeUts({
       manifest,
       template,
       assets,
+      traceBackground: traceFile ?? undefined,
     });
 
     const defaultName = normalizeUtsFilename(
@@ -292,6 +302,7 @@ export async function executeSaveTemplateAs(): Promise<boolean> {
       isDirty: false,
       assets: docStore.assets,
       hasSavedFile: true,
+      traceBackground: traceFile ?? null,
     });
 
     return true;

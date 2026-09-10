@@ -8,6 +8,20 @@ import { cloneTemplateAst } from '../history/historyUtils.js';
 
 export const RECOVERY_STORAGE_KEY = 'active_session';
 
+function deserializeBinaryData(raw: unknown): Uint8Array {
+  if (raw instanceof Uint8Array) return raw;
+  if (Array.isArray(raw)) return new Uint8Array(raw);
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if (Array.isArray(obj.data)) return new Uint8Array(obj.data as number[]);
+    const values = Object.values(obj);
+    if (values.length > 0 && typeof values[0] === 'number') {
+      return new Uint8Array(values as number[]);
+    }
+  }
+  return new Uint8Array();
+}
+
 /**
  * Saves the current editing session state to local recovery storage.
  * Debounced by callers during continuous editing; called immediately on explicit document actions.
@@ -17,12 +31,22 @@ export async function saveSessionRecovery(params: SaveRecoveryParams): Promise<b
     const storedAssets: StoredSessionAsset[] = [];
     if (params.assets && params.assets.size > 0) {
       for (const [key, asset] of params.assets.entries()) {
+        const data = asset.data instanceof Uint8Array ? Array.from(asset.data) : asset.data;
         storedAssets.push({
           filename: asset.filename || key,
           mimeType: asset.mimeType || 'application/octet-stream',
-          data: asset.data,
+          data,
         });
       }
+    }
+
+    let storedTrace: StoredSessionAsset | undefined;
+    if (params.traceBackground && params.traceBackground.data && params.traceBackground.data.byteLength > 0) {
+      storedTrace = {
+        filename: params.traceBackground.filename,
+        mimeType: params.traceBackground.mimeType || 'image/png',
+        data: Array.from(params.traceBackground.data),
+      };
     }
 
     const record: SessionRecoveryRecord = {
@@ -34,6 +58,7 @@ export async function saveSessionRecovery(params: SaveRecoveryParams): Promise<b
       template: cloneTemplateAst(params.template),
       savedBaseline: cloneTemplateAst(params.savedBaseline),
       assets: storedAssets,
+      traceBackground: storedTrace,
     };
 
     return await getRecoveryStorage().set(RECOVERY_STORAGE_KEY, record);
@@ -113,10 +138,7 @@ export function restoreSessionRecovery(record: SessionRecoveryRecord): {
   if (Array.isArray(record.assets)) {
     for (const item of record.assets) {
       if (!item || !item.filename) continue;
-      const data =
-        item.data instanceof Uint8Array
-          ? item.data
-          : new Uint8Array(item.data || []);
+      const data = deserializeBinaryData(item.data);
       const asset: UtsAsset = {
         filename: item.filename,
         mimeType: item.mimeType || 'application/octet-stream',
@@ -132,6 +154,18 @@ export function restoreSessionRecovery(record: SessionRecoveryRecord): {
 
   const docStore = useDocumentStore.getState();
   docStore.setAssets(assetMap);
+
+  if (record.traceBackground && record.traceBackground.filename) {
+    const data = deserializeBinaryData(record.traceBackground.data);
+    docStore.setTraceBackgroundFile({
+      filename: record.traceBackground.filename,
+      mimeType: record.traceBackground.mimeType || 'image/png',
+      data,
+    });
+  } else {
+    docStore.setTraceBackgroundFile(null);
+  }
+
   docStore.setFilename(record.filename);
   docStore.setFileHandle(null);
 

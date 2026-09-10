@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TemplateAst, PageSettings, TemplateElement } from '@uts/core';
+import type { TemplateAst, PageSettings, TemplateElement, TraceBackground } from '@uts/core';
 import { calculateMultiElementMove, type Point, type ElementBounds } from '@uts/canvas-engine';
 import { useHistoryStore } from './history/useHistoryStore.js';
 import { useDocumentStore } from './document/useDocumentStore.js';
@@ -9,6 +9,8 @@ interface TemplateState {
   // Actions
   setTemplate: (template: TemplateAst, skipHistory?: boolean) => void;
   updatePageSettings: (settings: Partial<PageSettings>) => void;
+  setTraceBackground: (trace: TraceBackground | undefined) => void;
+  updateTraceBackground: (patch: Partial<TraceBackground>) => void;
   addElement: (element: TemplateElement) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
   updateElements: (ids: string[], patch: Partial<TemplateElement>) => void;
@@ -197,6 +199,24 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         ...settings,
       },
     })),
+
+  setTraceBackground: (trace) =>
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      traceBackground: trace,
+    })),
+
+  updateTraceBackground: (patch) =>
+    commitTemplateChange(set, (prev) => {
+      if (!prev.traceBackground) return prev;
+      return {
+        ...prev,
+        traceBackground: {
+          ...prev.traceBackground,
+          ...patch,
+        },
+      };
+    }),
 
   addElement: (element) =>
     commitTemplateChange(set, (prev) => ({

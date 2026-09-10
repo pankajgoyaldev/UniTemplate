@@ -70,6 +70,7 @@ export function useSessionRecovery(): void {
           isDirty,
           assets: docStore.assets,
           hasSavedFile: Boolean(docStore.fileHandle),
+          traceBackground: docStore.traceBackgroundFile,
         });
       }, DEBOUNCE_MS);
     });

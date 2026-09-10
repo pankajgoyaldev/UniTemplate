@@ -9,6 +9,7 @@ import { PositionSection } from './PositionSection.js';
 import { AppearanceSection } from './AppearanceSection.js';
 import { TypographySection } from './TypographySection.js';
 import { InspectorSection } from './InspectorSection.js';
+import { BackgroundSection } from './BackgroundSection.js';
 
 export const InspectorPanel: React.FC = () => {
   const selectedElementIds = useUIStore((s) => s.selectedElementIds);
@@ -29,15 +30,38 @@ export const InspectorPanel: React.FC = () => {
     <aside className="w-80 shrink-0 bg-studio-panel border-l border-studio-border flex flex-col h-full overflow-y-auto select-none z-20">
       {/* 0 Selected State */}
       {selectionCount === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-studio-muted">
-          <div className="w-12 h-12 rounded-full bg-zinc-900 border border-studio-border/60 flex items-center justify-center mb-3 text-zinc-500">
-            <MousePointer className="w-5 h-5" />
-          </div>
-          <div className="text-xs font-medium text-studio-text mb-1">
-            No Selection
-          </div>
-          <div className="text-[11px] text-zinc-400 max-w-[180px] leading-relaxed">
-            Select an element to edit its properties.
+        <div className="flex flex-col h-full divide-y divide-studio-border/60">
+          <BackgroundSection />
+
+          <InspectorSection title="Page Settings" badge={`${pageSettings.width} × ${pageSettings.height} mm`}>
+            <div className="space-y-2 text-xs py-1">
+              <div className="flex items-center justify-between">
+                <span className="text-studio-muted font-medium">Orientation</span>
+                <span className="text-zinc-300 capitalize">{pageSettings.orientation}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-studio-muted font-medium">Margins</span>
+                <span className="font-mono text-zinc-300 text-[11px]">
+                  {pageSettings.margins.top} / {pageSettings.margins.right} / {pageSettings.margins.bottom} / {pageSettings.margins.left} mm
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-studio-muted font-medium">Elements Count</span>
+                <span className="font-mono text-zinc-300">{elements.length}</span>
+              </div>
+            </div>
+          </InspectorSection>
+
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-studio-muted">
+            <div className="w-10 h-10 rounded-full bg-zinc-900 border border-studio-border/60 flex items-center justify-center mb-2.5 text-zinc-500">
+              <MousePointer className="w-4 h-4" />
+            </div>
+            <div className="text-xs font-medium text-studio-text mb-1">
+              No Element Selected
+            </div>
+            <div className="text-[11px] text-zinc-400 max-w-[200px] leading-relaxed">
+              Select an element on canvas to edit its properties, or add elements from the toolbox.
+            </div>
           </div>
         </div>
       )}

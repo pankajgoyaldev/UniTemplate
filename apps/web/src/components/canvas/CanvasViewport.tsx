@@ -48,13 +48,20 @@ export const CanvasViewport: React.FC = () => {
   // Template Store
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
   const elements = useTemplateStore((s) => s.template.elements);
+  const traceBackground = useTemplateStore((s) => s.template.traceBackground);
   const deleteElements = useTemplateStore((s) => s.deleteElements);
   const nudgeElements = useTemplateStore((s) => s.nudgeElements);
 
   // Document Store (Asset management & resolver)
   const assets = useDocumentStore((s) => s.assets);
+  const traceBackgroundFile = useDocumentStore((s) => s.traceBackgroundFile);
   const getAssetResolver = useDocumentStore((s) => s.getAssetResolver);
+  const getTraceBackgroundUrl = useDocumentStore((s) => s.getTraceBackgroundUrl);
   const assetResolver = useMemo(() => getAssetResolver(), [getAssetResolver, assets]);
+  const traceBackgroundUrl = useMemo(
+    () => getTraceBackgroundUrl(),
+    [getTraceBackgroundUrl, traceBackgroundFile],
+  );
 
   // Viewport panning state: tracked in refs with RAF batching for synchronous, 1:1, non-accelerating movement
   const panLastPointerRef = useRef<Point | null>(null);
@@ -800,6 +807,8 @@ export const CanvasViewport: React.FC = () => {
           gridSizeMm={gridSizeMm}
           assetResolver={assetResolver}
           selectedElementIds={selectedElementIds}
+          traceBackground={traceBackground}
+          traceBackgroundUrl={traceBackgroundUrl}
           onHandleMouseDown={handleResizeHandleMouseDown}
         />
       </div>

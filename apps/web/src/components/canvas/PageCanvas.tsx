@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { mmToPx, DEFAULT_SCREEN_DPI, type PageSettings, type TemplateElement } from '@uts/core';
+import { mmToPx, DEFAULT_SCREEN_DPI, type PageSettings, type TemplateElement, type TraceBackground } from '@uts/core';
 import type { ResizeHandleType } from '@uts/canvas-engine';
 import { ElementRenderer } from './ElementRenderer.js';
 import { SelectionOverlay } from './SelectionOverlay.js';
@@ -14,6 +14,8 @@ interface PageCanvasProps {
   gridSizeMm: 5 | 10;
   assetResolver?: (assetRef: string) => string | undefined;
   selectedElementIds?: string[];
+  traceBackground?: TraceBackground;
+  traceBackgroundUrl?: string | null;
   onHandleMouseDown?: (e: React.MouseEvent, handle: ResizeHandleType, elementId: string) => void;
 }
 
@@ -27,6 +29,8 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
   gridSizeMm,
   assetResolver,
   selectedElementIds = [],
+  traceBackground,
+  traceBackgroundUrl,
   onHandleMouseDown,
 }) => {
   const { width: widthMm, height: heightMm, margins } = pageSettings;
@@ -112,6 +116,20 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
           strokeDasharray="4 3"
           opacity={0.6}
         />
+
+        {/* Trace Background Image Layer (Non-interactive visual reference) */}
+        {traceBackground?.enabled && traceBackgroundUrl && (
+          <image
+            href={traceBackgroundUrl}
+            x={0}
+            y={0}
+            width={scaledWidthPx}
+            height={scaledHeightPx}
+            preserveAspectRatio="xMidYMid meet"
+            opacity={Math.max(0, Math.min(1, traceBackground.opacity ?? 1))}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
 
         {/* Rendered Template Elements */}
         <g className="template-elements-layer">

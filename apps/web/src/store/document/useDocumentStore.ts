@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { TemplateAst, UtsAsset } from '@uts/core';
+import type { TemplateAst, UtsAsset, UtsTraceFile } from '@uts/core';
 import {
   DEFAULT_DOCUMENT_NAME,
   normalizeUtsFilename,
@@ -19,6 +19,7 @@ export const useDocumentStore = create<DocumentSessionState>((set, get) => {
     isDirty: false,
     savedBaseline: cloneTemplateAst(DEFAULT_A4_TEMPLATE),
     assets: new Map<string, UtsAsset>(),
+    traceBackgroundFile: null,
     isUnsavedModalOpen: false,
     pendingAction: null,
     isOperationInProgress: false,
@@ -69,6 +70,17 @@ export const useDocumentStore = create<DocumentSessionState>((set, get) => {
       };
     },
 
+    setTraceBackgroundFile: (traceBackgroundFile: UtsTraceFile | null) => {
+      if (!traceBackgroundFile) {
+        globalAssetCache.revokeTrace();
+      }
+      set({ traceBackgroundFile });
+    },
+
+    getTraceBackgroundUrl: () => {
+      return globalAssetCache.resolveTrace(get().traceBackgroundFile);
+    },
+
     setUnsavedModalOpen: (isUnsavedModalOpen: boolean) => {
       set({ isUnsavedModalOpen });
     },
@@ -89,6 +101,7 @@ export const useDocumentStore = create<DocumentSessionState>((set, get) => {
         isDirty: false,
         savedBaseline: cloneTemplateAst(initialTemplate),
         assets: new Map<string, UtsAsset>(),
+        traceBackgroundFile: null,
         isUnsavedModalOpen: false,
         pendingAction: null,
         isOperationInProgress: false,

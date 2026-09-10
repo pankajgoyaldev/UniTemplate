@@ -1,4 +1,4 @@
-import type { TemplateAst, UtsAsset } from '@uts/core';
+import type { TemplateAst, UtsAsset, UtsTraceFile } from '@uts/core';
 
 export interface StoredSessionAsset {
   filename: string;
@@ -15,6 +15,7 @@ export interface SessionRecoveryRecord {
   template: TemplateAst;
   savedBaseline: TemplateAst;
   assets: StoredSessionAsset[];
+  traceBackground?: StoredSessionAsset;
 }
 
 export interface SaveRecoveryParams {
@@ -24,6 +25,7 @@ export interface SaveRecoveryParams {
   isDirty: boolean;
   assets: Map<string, UtsAsset>;
   hasSavedFile: boolean;
+  traceBackground?: UtsTraceFile | null;
 }
 
 export type RecoveryNotificationType = 'recovered_unsaved' | 'recovered_saved' | null;

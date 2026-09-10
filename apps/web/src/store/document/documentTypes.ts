@@ -1,4 +1,4 @@
-import type { TemplateAst, UtsAsset } from '@uts/core';
+import type { TemplateAst, UtsAsset, UtsTraceFile } from '@uts/core';
 
 export const DEFAULT_DOCUMENT_NAME = 'Untitled.uts';
 
@@ -26,6 +26,7 @@ export interface DocumentSessionState {
   isDirty: boolean;
   savedBaseline: TemplateAst;
   assets: Map<string, UtsAsset>;
+  traceBackgroundFile: UtsTraceFile | null;
   isUnsavedModalOpen: boolean;
   pendingAction: (() => Promise<void> | void) | null;
   isOperationInProgress: boolean;
@@ -38,6 +39,8 @@ export interface DocumentSessionState {
   markDirty: () => void;
   setAssets: (assets: Map<string, UtsAsset>) => void;
   getAssetResolver: () => (assetRef: string) => string | undefined;
+  setTraceBackgroundFile: (file: UtsTraceFile | null) => void;
+  getTraceBackgroundUrl: () => string | null;
   setUnsavedModalOpen: (open: boolean) => void;
   setPendingAction: (action: (() => Promise<void> | void) | null) => void;
   setIsOperationInProgress: (inProgress: boolean) => void;

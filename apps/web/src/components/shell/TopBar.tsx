@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Save,
   Download,
+  Image as ImageIcon,
   X,
 } from 'lucide-react';
 import { useRecoveryStore } from '../../store/recovery/useRecoveryStore.js';
@@ -26,6 +27,10 @@ import {
   executeSaveTemplate,
   executeSaveTemplateAs,
 } from '../../operations/documentOperations.js';
+import {
+  importBackgroundImage,
+  SUPPORTED_BACKGROUND_EXTENSIONS,
+} from '../../operations/backgroundOperations.js';
 
 export const TopBar: React.FC = () => {
   const zoom = useUIStore((s) => s.zoom);
@@ -64,6 +69,17 @@ export const TopBar: React.FC = () => {
   const canRedo = useHistoryStore((s) => s.canRedo);
   const undo = useHistoryStore((s) => s.undo);
   const redo = useHistoryStore((s) => s.redo);
+
+  const bgInputRef = React.useRef<HTMLInputElement>(null);
+  const handleBgFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await importBackgroundImage(file);
+    }
+    if (bgInputRef.current) {
+      bgInputRef.current.value = '';
+    }
+  };
 
   const zoomPercent = Math.round(zoom * 100);
 
@@ -167,6 +183,24 @@ export const TopBar: React.FC = () => {
             <Download className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Save As</span>
           </button>
+          <button
+            type="button"
+            onClick={() => bgInputRef.current?.click()}
+            disabled={isOperationInProgress}
+            className="px-2 py-1 rounded text-xs flex items-center gap-1.5 text-studio-muted hover:text-studio-text hover:bg-studio-panel transition-colors disabled:opacity-40"
+            title="Import Background Image (PNG, JPG, WebP, SVG)"
+            aria-label="Import Background"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Background</span>
+          </button>
+          <input
+            ref={bgInputRef}
+            type="file"
+            accept={SUPPORTED_BACKGROUND_EXTENSIONS.join(',') + ',image/png,image/jpeg,image/webp,image/svg+xml'}
+            className="hidden"
+            onChange={handleBgFileChange}
+          />
         </div>
         {/* Undo / Redo Controls */}
         <div className="flex items-center bg-studio-bg border border-studio-border rounded-lg p-0.5">
