@@ -3,6 +3,7 @@ import { TopBar } from './components/shell/TopBar.js';
 import { StatusBar } from './components/shell/StatusBar.js';
 import { CanvasViewport } from './components/canvas/CanvasViewport.js';
 import { InspectorPanel } from './components/inspector/index.js';
+import { ToolboxPanel } from './components/toolbox/ToolboxPanel.js';
 import { useHistoryShortcuts } from './hooks/useHistoryShortcuts.js';
 import { useDocumentShortcuts } from './hooks/useDocumentShortcuts.js';
 import { useSessionRecovery } from './hooks/useSessionRecovery.js';
@@ -18,8 +19,9 @@ export const App: React.FC = () => {
       {/* 1. Header Toolbar */}
       <TopBar />
 
-      {/* 2. Main Studio Workspace: Canvas + Right Inspector */}
+      {/* 2. Main Studio Workspace: Toolbox + Canvas + Right Inspector */}
       <div className="flex-1 flex flex-row overflow-hidden relative">
+        <ToolboxPanel />
         <main className="flex-1 relative overflow-hidden">
           <CanvasViewport />
         </main>

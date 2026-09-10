@@ -76,7 +76,7 @@ export const TopBar: React.FC = () => {
             U
           </div>
           <span className="font-semibold text-sm tracking-tight text-studio-text">
-            Universe Studio
+            UniTemplate
           </span>
         </div>
         <span className="text-studio-muted text-xs">/</span>
