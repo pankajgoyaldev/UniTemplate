@@ -7,4 +7,6 @@ export * from './ElementInfoSection.js';
 export * from './NumericInput.js';
 export * from './ColorInput.js';
 export * from './BackgroundSection.js';
+export * from './VariablesManager.js';
+export * from './VariablesSection.js';
 

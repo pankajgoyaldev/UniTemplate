@@ -15,6 +15,7 @@ import {
   type RenderContext,
   type SvgElementDescriptor,
 } from './types.js';
+import { resolveTextElementContent } from './binding-resolver.js';
 
 export interface TextLineDescriptor {
   text: string;
@@ -286,9 +287,16 @@ export function renderTextElement(
       break;
   }
 
+  // Resolve dynamic tokens / bindings based on context
+  const resolvedContent = resolveTextElementContent(
+    element,
+    context.mockPayload,
+    context.previewMode,
+  );
+
   // Multi-line breaking with metadata
   const lineDescriptors = breakTextLinesWithMetadata(
-    element.content,
+    resolvedContent,
     widthPx,
     fontSizePx,
     element.style.fontFamily,

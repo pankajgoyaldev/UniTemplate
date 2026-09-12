@@ -16,6 +16,8 @@ interface PageCanvasProps {
   selectedElementIds?: string[];
   traceBackground?: TraceBackground;
   traceBackgroundUrl?: string | null;
+  previewMode?: boolean;
+  mockPayload?: Record<string, unknown>;
   onHandleMouseDown?: (e: React.MouseEvent, handle: ResizeHandleType, elementId: string) => void;
 }
 
@@ -31,6 +33,8 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
   selectedElementIds = [],
   traceBackground,
   traceBackgroundUrl,
+  previewMode,
+  mockPayload,
   onHandleMouseDown,
 }) => {
   const { width: widthMm, height: heightMm, margins } = pageSettings;
@@ -139,6 +143,8 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
               element={element}
               zoom={zoom}
               assetResolver={assetResolver}
+              previewMode={previewMode}
+              mockPayload={mockPayload}
             />
           ))}
         </g>

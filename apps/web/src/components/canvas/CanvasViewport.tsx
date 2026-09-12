@@ -33,6 +33,7 @@ export const CanvasViewport: React.FC = () => {
   const gridSizeMm = useUIStore((s) => s.gridSizeMm);
   const selectedElementIds = useUIStore((s) => s.selectedElementIds);
   const isDraggingElement = useUIStore((s) => s.isDraggingElement);
+  const viewMode = useUIStore((s) => s.viewMode);
 
   const setViewportSize = useUIStore((s) => s.setViewportSize);
   const setIsSpacePressed = useUIStore((s) => s.setIsSpacePressed);
@@ -49,6 +50,7 @@ export const CanvasViewport: React.FC = () => {
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
   const elements = useTemplateStore((s) => s.template.elements);
   const traceBackground = useTemplateStore((s) => s.template.traceBackground);
+  const mockPayload = useTemplateStore((s) => s.template.dataSchema?.mockPayload);
   const deleteElements = useTemplateStore((s) => s.deleteElements);
   const nudgeElements = useTemplateStore((s) => s.nudgeElements);
 
@@ -809,6 +811,8 @@ export const CanvasViewport: React.FC = () => {
           selectedElementIds={selectedElementIds}
           traceBackground={traceBackground}
           traceBackgroundUrl={traceBackgroundUrl}
+          previewMode={viewMode === 'preview'}
+          mockPayload={mockPayload}
           onHandleMouseDown={handleResizeHandleMouseDown}
         />
       </div>

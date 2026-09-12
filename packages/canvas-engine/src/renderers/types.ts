@@ -9,6 +9,8 @@ export interface RenderContext {
   zoom: number;
   dpi?: number;
   assetResolver?: (assetRef: string) => string | undefined;
+  previewMode?: boolean;
+  mockPayload?: Record<string, unknown>;
 }
 
 export interface SvgElementDescriptor {

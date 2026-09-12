@@ -17,6 +17,7 @@ import {
   type RenderContext,
   type SvgElementDescriptor,
 } from './types.js';
+import { resolveBarcodeElementContent } from './binding-resolver.js';
 
 export interface BarcodeVectorOutput {
   rawSvg: string;
@@ -63,9 +64,17 @@ export function mapBarcodeTypeToBcid(type: BarcodeType): string {
  * Generates an SVG vector barcode representation using bwip-js.
  * Fully isolated behind this function with graceful error fallback and sanitization.
  */
-export function generateBarcodeVector(element: BarcodeElement): BarcodeVectorOutput {
+export function generateBarcodeVector(
+  element: BarcodeElement,
+  overrideContent?: string,
+): BarcodeVectorOutput {
   const bcid = mapBarcodeTypeToBcid(element.barcodeType);
-  const text = element.content !== undefined && element.content !== null ? String(element.content) : '';
+  const rawText = overrideContent !== undefined
+    ? overrideContent
+    : element.content !== undefined && element.content !== null
+    ? String(element.content)
+    : '';
+  const text = rawText;
 
   try {
     const toSvgFn = (bwipjs as any).default?.toSVG || (bwipjs as any).toSVG || (bwipjs as any);
@@ -123,7 +132,13 @@ export function renderBarcodeElement(
   const widthPx = Math.max(0, mmToPx(element.bounds.width, dpi) * zoom);
   const heightPx = Math.max(0, mmToPx(element.bounds.height, dpi) * zoom);
 
-  const { viewBox, innerContent } = generateBarcodeVector(element);
+  const resolvedContent = resolveBarcodeElementContent(
+    element,
+    context.mockPayload,
+    context.previewMode,
+  );
+
+  const { viewBox, innerContent } = generateBarcodeVector(element, resolvedContent);
 
   // QR and DataMatrix are always square aspect ratio; 1D barcodes can fill horizontally
   const is2D = element.barcodeType === 'qr' || element.barcodeType === 'datamatrix';

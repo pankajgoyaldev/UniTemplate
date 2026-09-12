@@ -10,6 +10,8 @@ interface ElementRendererProps {
   element: TemplateElement;
   zoom: number;
   assetResolver?: (assetRef: string) => string | undefined;
+  previewMode?: boolean;
+  mockPayload?: Record<string, unknown>;
 }
 
 /**
@@ -61,11 +63,15 @@ export const ElementRenderer: React.FC<ElementRendererProps> = ({
   element,
   zoom,
   assetResolver,
+  previewMode,
+  mockPayload,
 }) => {
   const context: RenderContext = {
     zoom,
     dpi: DEFAULT_SCREEN_DPI,
     assetResolver,
+    previewMode,
+    mockPayload,
   };
 
   const descriptor = renderElement(element, context);

@@ -8,6 +8,7 @@ import { useHistoryShortcuts } from './hooks/useHistoryShortcuts.js';
 import { useDocumentShortcuts } from './hooks/useDocumentShortcuts.js';
 import { useSessionRecovery } from './hooks/useSessionRecovery.js';
 import { UnsavedChangesModal } from './components/modals/UnsavedChangesModal.js';
+import { VariablesModal } from './components/modals/VariablesModal.js';
 
 export const App: React.FC = () => {
   useHistoryShortcuts();
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
 
       {/* 4. Studio Modals */}
       <UnsavedChangesModal />
+      <VariablesModal />
     </div>
   );
 };

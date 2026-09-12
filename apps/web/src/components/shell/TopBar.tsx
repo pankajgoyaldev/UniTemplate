@@ -14,6 +14,9 @@ import {
   Save,
   Download,
   Image as ImageIcon,
+  Database,
+  Eye,
+  Pencil,
   X,
 } from 'lucide-react';
 import { useRecoveryStore } from '../../store/recovery/useRecoveryStore.js';
@@ -35,6 +38,9 @@ import {
 export const TopBar: React.FC = () => {
   const zoom = useUIStore((s) => s.zoom);
   const activeTool = useUIStore((s) => s.activeTool);
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const setVariablesModalOpen = useUIStore((s) => s.setVariablesModalOpen);
   const gridVisible = useUIStore((s) => s.gridVisible);
   const gridSizeMm = useUIStore((s) => s.gridSizeMm);
   const snapToGrid = useUIStore((s) => s.snapToGrid);
@@ -48,6 +54,7 @@ export const TopBar: React.FC = () => {
   const fitToScreen = useUIStore((s) => s.fitToScreen);
 
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
+  const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
 
   const filename = useDocumentStore((s) => s.filename);
   const isDirty = useDocumentStore((s) => s.isDirty);
@@ -194,6 +201,20 @@ export const TopBar: React.FC = () => {
             <ImageIcon className="w-3.5 h-3.5" />
             <span className="hidden xl:inline">Background</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setVariablesModalOpen(true)}
+            disabled={isOperationInProgress}
+            className="px-2 py-1 rounded text-xs flex items-center gap-1.5 text-studio-muted hover:text-studio-text hover:bg-studio-panel transition-colors disabled:opacity-40"
+            title="Manage Template Variables"
+            aria-label="Template Variables"
+          >
+            <Database className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden xl:inline">Variables</span>
+            <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+              {fields.length}
+            </span>
+          </button>
           <input
             ref={bgInputRef}
             type="file"
@@ -255,6 +276,38 @@ export const TopBar: React.FC = () => {
           >
             <Hand className="w-3.5 h-3.5" />
             <span>Hand</span>
+          </button>
+        </div>
+
+        {/* View Mode: Design vs Preview */}
+        <div className="flex items-center bg-studio-bg border border-studio-border rounded-lg p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode('design')}
+            className={`px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-colors ${
+              viewMode === 'design'
+                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                : 'text-studio-muted hover:text-studio-text hover:bg-studio-panel'
+            }`}
+            title="Design View (Shows template structure and tokens)"
+            aria-label="Design View"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            <span>Design</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('preview')}
+            className={`px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-colors ${
+              viewMode === 'preview'
+                ? 'bg-emerald-600 text-white font-medium shadow-sm'
+                : 'text-studio-muted hover:text-studio-text hover:bg-studio-panel'
+            }`}
+            title="Preview View (Renders live sample data from mock payload)"
+            aria-label="Preview View"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Preview</span>
           </button>
         </div>
       </div>

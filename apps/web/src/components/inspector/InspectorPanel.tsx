@@ -10,6 +10,7 @@ import { AppearanceSection } from './AppearanceSection.js';
 import { TypographySection } from './TypographySection.js';
 import { InspectorSection } from './InspectorSection.js';
 import { BackgroundSection } from './BackgroundSection.js';
+import { VariablesSection } from './VariablesSection.js';
 
 export const InspectorPanel: React.FC = () => {
   const selectedElementIds = useUIStore((s) => s.selectedElementIds);
@@ -31,6 +32,7 @@ export const InspectorPanel: React.FC = () => {
       {/* 0 Selected State */}
       {selectionCount === 0 && (
         <div className="flex flex-col h-full divide-y divide-studio-border/60">
+          <VariablesSection />
           <BackgroundSection />
 
           <InspectorSection title="Page Settings" badge={`${pageSettings.width} × ${pageSettings.height} mm`}>

@@ -4,6 +4,8 @@ import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, AlignJustify } from '
 import { InspectorSection } from './InspectorSection.js';
 import { ColorInput } from './ColorInput.js';
 import { NumericInput } from './NumericInput.js';
+import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { useUIStore } from '../../store/useUIStore.js';
 
 export interface TypographySectionProps {
   element: TextElement;
@@ -26,7 +28,12 @@ export const TypographySection: React.FC<TypographySectionProps> = ({
   disabled,
   onUpdate,
 }) => {
-  const { content, style } = element;
+  const { content, style, bindingField } = element;
+  const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
+  const mockPayload = useTemplateStore((s) => s.template.dataSchema?.mockPayload || {});
+  const setVariablesModalOpen = useUIStore((s) => s.setVariablesModalOpen);
+
+  const isBound = Boolean(bindingField && bindingField.trim().length > 0);
 
   const updateStyle = (patch: Partial<TextElement['style']>) => {
     if (disabled) return;
@@ -43,19 +50,112 @@ export const TypographySection: React.FC<TypographySectionProps> = ({
 
   return (
     <InspectorSection title="Typography">
-      {/* Content Editor */}
-      <div className="py-1">
-        <span className="text-studio-muted font-medium text-xs block mb-1 select-none">
-          Text Content
-        </span>
-        <textarea
-          rows={2}
-          disabled={disabled}
-          value={content}
-          onChange={(e) => onUpdate({ content: e.target.value })}
-          className="w-full bg-zinc-900 border border-studio-border rounded px-2 py-1.5 text-studio-text text-xs focus:outline-none focus:border-blue-500 font-sans resize-y disabled:opacity-40"
-          placeholder="Enter text..."
-        />
+      {/* Content & Field Binding Selector */}
+      <div className="py-1 space-y-2 border-b border-studio-border/50 pb-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-studio-muted font-medium select-none">
+            Text Mode
+          </span>
+          <div className="flex items-center gap-0.5 bg-zinc-950 p-0.5 rounded border border-studio-border">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (isBound) {
+                  onUpdate({ bindingField: undefined });
+                }
+              }}
+              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                !isBound
+                  ? 'bg-blue-600 text-white font-medium'
+                  : 'text-zinc-400 hover:text-white'
+              } disabled:opacity-40`}
+            >
+              Static Text
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (!isBound) {
+                  const defaultField = fields.length > 0 ? fields[0].name : '';
+                  if (defaultField) {
+                    onUpdate({ bindingField: defaultField });
+                  } else {
+                    setVariablesModalOpen(true);
+                  }
+                }
+              }}
+              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                isBound
+                  ? 'bg-blue-600 text-white font-medium'
+                  : 'text-zinc-400 hover:text-white'
+              } disabled:opacity-40`}
+            >
+              Dynamic Field
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Field Selector */}
+        {isBound ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-studio-muted font-medium w-16 shrink-0 select-none">
+                Field
+              </span>
+              <div className="flex items-center gap-1 max-w-[170px] flex-1">
+                <select
+                  disabled={disabled}
+                  value={bindingField || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__add_new__') {
+                      setVariablesModalOpen(true);
+                    } else {
+                      onUpdate({ bindingField: val || undefined });
+                    }
+                  }}
+                  className="bg-zinc-900 border border-studio-border rounded px-2 py-1 text-studio-text text-xs focus:outline-none focus:border-blue-500 flex-1 font-mono disabled:opacity-40 truncate"
+                >
+                  {fields.map((f) => (
+                    <option key={f.name} value={f.name}>
+                      {f.name} ({f.type})
+                    </option>
+                  ))}
+                  <option value="__add_new__">+ New Variable...</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Sample Readout */}
+            <div className="flex items-center justify-between text-[11px] bg-zinc-900/60 px-2 py-1 rounded border border-studio-border/50">
+              <span className="text-studio-muted">Sample Value:</span>
+              <span className="font-mono text-zinc-200 truncate max-w-[140px]">
+                {mockPayload[bindingField!] !== undefined
+                  ? String(mockPayload[bindingField!])
+                  : '—'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <span className="text-studio-muted font-medium text-xs block mb-1 select-none">
+              Text Content
+            </span>
+            <textarea
+              rows={2}
+              disabled={disabled}
+              value={content}
+              onChange={(e) => onUpdate({ content: e.target.value })}
+              className="w-full bg-zinc-900 border border-studio-border rounded px-2 py-1.5 text-studio-text text-xs focus:outline-none focus:border-blue-500 font-sans resize-y disabled:opacity-40"
+              placeholder="Enter text..."
+            />
+            <div className="text-[10px] text-zinc-500 mt-1">
+              Tip: Use <span className="font-mono text-blue-400">{'{{variable_name}}'}</span> for inline dynamic fields.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Font Family */}

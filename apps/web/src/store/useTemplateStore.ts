@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { TemplateAst, PageSettings, TemplateElement, TraceBackground } from '@uts/core';
+import type { TemplateAst, PageSettings, TemplateElement, TraceBackground, DataField } from '@uts/core';
 import { calculateMultiElementMove, type Point, type ElementBounds } from '@uts/canvas-engine';
 import { useHistoryStore } from './history/useHistoryStore.js';
 import { useDocumentStore } from './document/useDocumentStore.js';
+import { parseSampleValue, type VariableType } from '../operations/variableOperations.js';
 
 interface TemplateState {
   template: TemplateAst;
@@ -11,6 +12,9 @@ interface TemplateState {
   updatePageSettings: (settings: Partial<PageSettings>) => void;
   setTraceBackground: (trace: TraceBackground | undefined) => void;
   updateTraceBackground: (patch: Partial<TraceBackground>) => void;
+  addVariable: (field: DataField, sampleValue?: unknown) => void;
+  updateVariable: (name: string, patch: Partial<DataField>, sampleValue?: unknown) => void;
+  deleteVariable: (name: string) => void;
   addElement: (element: TemplateElement) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
   updateElements: (ids: string[], patch: Partial<TemplateElement>) => void;
@@ -215,6 +219,119 @@ export const useTemplateStore = create<TemplateState>((set) => ({
           ...prev.traceBackground,
           ...patch,
         },
+      };
+    }),
+
+  addVariable: (field, sampleValue) =>
+    commitTemplateChange(set, (prev) => {
+      const existingFields = prev.dataSchema?.fields || [];
+      if (existingFields.some((f) => f.name === field.name)) {
+        return prev;
+      }
+      const parsedSample = parseSampleValue(
+        field.type as VariableType,
+        sampleValue !== undefined ? sampleValue : field.sampleValue,
+      );
+      const newField: DataField = {
+        ...field,
+        sampleValue: parsedSample,
+      };
+      return {
+        ...prev,
+        dataSchema: {
+          fields: [...existingFields, newField],
+          mockPayload: {
+            ...(prev.dataSchema?.mockPayload || {}),
+            [field.name]: parsedSample,
+          },
+        },
+      };
+    }),
+
+  updateVariable: (name, patch, sampleValue) =>
+    commitTemplateChange(set, (prev) => {
+      const fields = prev.dataSchema?.fields || [];
+      const target = fields.find((f) => f.name === name);
+      if (!target) return prev;
+
+      const newName =
+        patch.name && patch.name.trim().length > 0 ? patch.name.trim() : name;
+      const newType = (patch.type || target.type) as VariableType;
+      const rawSample =
+        sampleValue !== undefined
+          ? sampleValue
+          : prev.dataSchema?.mockPayload?.[name] !== undefined
+          ? prev.dataSchema.mockPayload[name]
+          : target.sampleValue;
+      const parsedSample = parseSampleValue(newType, rawSample);
+
+      const updatedFields = fields.map((f) => {
+        if (f.name !== name) return f;
+        return {
+          ...f,
+          ...patch,
+          name: newName,
+          type: newType,
+          sampleValue: parsedSample,
+        };
+      });
+
+      const newMockPayload = { ...(prev.dataSchema?.mockPayload || {}) };
+      if (newName !== name) {
+        delete newMockPayload[name];
+      }
+      newMockPayload[newName] = parsedSample;
+
+      // Update elements bound to the renamed variable
+      let updatedElements = prev.elements;
+      if (newName !== name) {
+        updatedElements = prev.elements.map((el) => {
+          if ('bindingField' in el && (el as any).bindingField === name) {
+            return {
+              ...el,
+              bindingField: newName,
+            } as TemplateElement;
+          }
+          return el;
+        });
+      }
+
+      return {
+        ...prev,
+        dataSchema: {
+          fields: updatedFields,
+          mockPayload: newMockPayload,
+        },
+        elements: updatedElements,
+      };
+    }),
+
+  deleteVariable: (name) =>
+    commitTemplateChange(set, (prev) => {
+      const fields = prev.dataSchema?.fields || [];
+      if (!fields.some((f) => f.name === name)) return prev;
+
+      const updatedFields = fields.filter((f) => f.name !== name);
+      const newMockPayload = { ...(prev.dataSchema?.mockPayload || {}) };
+      delete newMockPayload[name];
+
+      // Unbind any element bound to the deleted variable
+      const updatedElements = prev.elements.map((el) => {
+        if ('bindingField' in el && (el as any).bindingField === name) {
+          const copy = { ...el };
+          delete (copy as any).bindingField;
+          return copy as TemplateElement;
+        }
+        return el;
+      });
+
+      return {
+        ...prev,
+        dataSchema: {
+          fields: updatedFields,
+          mockPayload: newMockPayload,
+        },
+        elements: updatedElements,
       };
     }),
 

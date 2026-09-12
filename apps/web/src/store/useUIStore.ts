@@ -27,7 +27,14 @@ interface UIState extends ViewportState {
   isDraggingElement: boolean;
   isResizingElement: boolean;
 
+  // View Mode & Dialogs
+  viewMode: 'design' | 'preview';
+  isVariablesModalOpen: boolean;
+
   // Actions
+  setViewMode: (mode: 'design' | 'preview') => void;
+  toggleViewMode: () => void;
+  setVariablesModalOpen: (open: boolean) => void;
   setZoom: (zoom: number) => void;
   setPan: (panX: number, panY: number) => void;
   panBy: (deltaScreenPx: Point) => void;
@@ -74,6 +81,16 @@ export const useUIStore = create<UIState>((set, get) => ({
   activeHandle: null,
   isDraggingElement: false,
   isResizingElement: false,
+
+  viewMode: 'design',
+  isVariablesModalOpen: false,
+
+  setViewMode: (mode) => set({ viewMode: mode }),
+  toggleViewMode: () =>
+    set((state) => ({
+      viewMode: state.viewMode === 'design' ? 'preview' : 'design',
+    })),
+  setVariablesModalOpen: (open) => set({ isVariablesModalOpen: open }),
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
