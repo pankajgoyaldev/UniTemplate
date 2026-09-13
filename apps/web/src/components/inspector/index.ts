@@ -10,3 +10,4 @@ export * from './BackgroundSection.js';
 export * from './VariablesManager.js';
 export * from './VariablesSection.js';
 
+export * from './PageSettingsSection.js';

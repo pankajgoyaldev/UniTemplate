@@ -11,6 +11,7 @@ import { TypographySection } from './TypographySection.js';
 import { InspectorSection } from './InspectorSection.js';
 import { BackgroundSection } from './BackgroundSection.js';
 import { VariablesSection } from './VariablesSection.js';
+import { PageSettingsSection } from './PageSettingsSection.js';
 
 export const InspectorPanel: React.FC = () => {
   const selectedElementIds = useUIStore((s) => s.selectedElementIds);
@@ -35,24 +36,7 @@ export const InspectorPanel: React.FC = () => {
           <VariablesSection />
           <BackgroundSection />
 
-          <InspectorSection title="Page Settings" badge={`${pageSettings.width} × ${pageSettings.height} mm`}>
-            <div className="space-y-2 text-xs py-1">
-              <div className="flex items-center justify-between">
-                <span className="text-studio-muted font-medium">Orientation</span>
-                <span className="text-zinc-300 capitalize">{pageSettings.orientation}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-studio-muted font-medium">Margins</span>
-                <span className="font-mono text-zinc-300 text-[11px]">
-                  {pageSettings.margins.top} / {pageSettings.margins.right} / {pageSettings.margins.bottom} / {pageSettings.margins.left} mm
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-studio-muted font-medium">Elements Count</span>
-                <span className="font-mono text-zinc-300">{elements.length}</span>
-              </div>
-            </div>
-          </InspectorSection>
+          <PageSettingsSection />
 
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-studio-muted">
             <div className="w-10 h-10 rounded-full bg-zinc-900 border border-studio-border/60 flex items-center justify-center mb-2.5 text-zinc-500">

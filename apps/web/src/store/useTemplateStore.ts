@@ -196,13 +196,29 @@ export const useTemplateStore = create<TemplateState>((set) => ({
   },
 
   updatePageSettings: (settings) =>
-    commitTemplateChange(set, (prev) => ({
-      ...prev,
-      pageSettings: {
-        ...prev.pageSettings,
-        ...settings,
-      },
-    })),
+    commitTemplateChange(set, (prev) => {
+      const width =
+        settings.width !== undefined && Number.isFinite(settings.width) && settings.width > 0
+          ? settings.width
+          : prev.pageSettings.width;
+      const height =
+        settings.height !== undefined && Number.isFinite(settings.height) && settings.height > 0
+          ? settings.height
+          : prev.pageSettings.height;
+      const orientation =
+        settings.orientation ?? (width > height ? 'landscape' : 'portrait');
+
+      return {
+        ...prev,
+        pageSettings: {
+          ...prev.pageSettings,
+          ...settings,
+          width,
+          height,
+          orientation,
+        },
+      };
+    }),
 
   setTraceBackground: (trace) =>
     commitTemplateChange(set, (prev) => ({
