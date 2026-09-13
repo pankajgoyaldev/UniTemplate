@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Image as ImageIcon, Eye, EyeOff, Trash2, Upload, Lock, RefreshCw } from 'lucide-react';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
 import { useDocumentStore } from '../../store/document/useDocumentStore.js';
+import { useHistoryStore } from '../../store/history/useHistoryStore.js';
 import {
   importBackgroundImage,
   removeTraceBackground,
@@ -137,6 +138,18 @@ export const BackgroundSection: React.FC = () => {
               max={100}
               step={5}
               value={opacityPercent}
+              onPointerDown={() => useHistoryStore.getState().beginHistoryTransaction()}
+              onPointerUp={() => useHistoryStore.getState().commitHistoryTransaction()}
+              onKeyDown={(e) => {
+                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
+                  useHistoryStore.getState().beginHistoryTransaction();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
+                  useHistoryStore.getState().commitHistoryTransaction();
+                }
+              }}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 setTraceBackgroundOpacity(val / 100);

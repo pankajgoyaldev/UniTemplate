@@ -135,9 +135,9 @@ export async function executeOpenTemplate(
   }
 
   // 4. Verification succeeded - safely replace document
-  useTemplateStore.getState().setTemplate(pkg.template);
   docStore.setAssets(pkg.assets);
   docStore.setTraceBackgroundFile(pkg.traceBackground ?? null);
+  useTemplateStore.getState().setTemplate(pkg.template);
   const finalFilename = rawFilename || pkg.template.metadata.title || DEFAULT_DOCUMENT_NAME;
   docStore.setFilename(finalFilename);
   docStore.setFileHandle(rawHandle ?? null);
@@ -177,7 +177,7 @@ export async function executeSaveTemplate(): Promise<boolean> {
   try {
     const template = useTemplateStore.getState().template;
     const assets = docStore.assets;
-    const traceFile = template.traceBackground ? docStore.traceBackgroundFile : undefined;
+    const traceFile = template.traceBackground ? (docStore.getActiveTraceFile() ?? docStore.traceBackgroundFile) : undefined;
     const hasTrace = Boolean(traceFile && template.traceBackground?.enabled);
 
     const manifest: UtsManifest = {
@@ -252,7 +252,7 @@ export async function executeSaveTemplateAs(): Promise<boolean> {
   try {
     const template = useTemplateStore.getState().template;
     const assets = docStore.assets;
-    const traceFile = template.traceBackground ? docStore.traceBackgroundFile : undefined;
+    const traceFile = template.traceBackground ? (docStore.getActiveTraceFile() ?? docStore.traceBackgroundFile) : undefined;
     const hasTrace = Boolean(traceFile && template.traceBackground?.enabled);
 
     const manifest: UtsManifest = {

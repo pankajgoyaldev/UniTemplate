@@ -180,6 +180,7 @@ function commitTemplateChange(
     }
     useHistoryStore.getState().recordChange(prevTemplate, newTemplate);
     useDocumentStore.getState().checkDirty(newTemplate);
+    useDocumentStore.getState().syncTraceBackground?.(newTemplate);
     return { template: newTemplate };
   });
 }
@@ -192,6 +193,7 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       useHistoryStore.getState().clearHistory();
     }
     useDocumentStore.getState().checkDirty(template);
+    useDocumentStore.getState().syncTraceBackground?.(template);
     set({ template });
   },
 

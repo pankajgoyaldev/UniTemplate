@@ -7,6 +7,7 @@ export class AssetCache {
   private urls = new Map<string, string>();
   private traceUrl: string | null = null;
   private traceKey: string | null = null;
+  private lastTraceData: Uint8Array | null = null;
 
   /**
    * Cleans up all generated object URLs.
@@ -42,6 +43,7 @@ export class AssetCache {
     }
     this.traceUrl = null;
     this.traceKey = null;
+    this.lastTraceData = null;
   }
 
   /**
@@ -116,12 +118,13 @@ export class AssetCache {
     }
 
     const key = `${traceFile.filename}:${traceFile.data.byteLength}`;
-    if (this.traceUrl && this.traceKey === key) {
+    if (this.traceUrl && this.traceKey === key && this.lastTraceData === traceFile.data) {
       return this.traceUrl;
     }
 
     // Revoke previous trace URL before creating a new one
     this.revokeTrace();
+    this.lastTraceData = traceFile.data;
 
     try {
       if (typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {

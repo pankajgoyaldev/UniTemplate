@@ -27,6 +27,7 @@ export interface DocumentSessionState {
   savedBaseline: TemplateAst;
   assets: Map<string, UtsAsset>;
   traceBackgroundFile: UtsTraceFile | null;
+  traceBackgroundFiles: Map<string, UtsTraceFile>;
   isUnsavedModalOpen: boolean;
   pendingAction: (() => Promise<void> | void) | null;
   isOperationInProgress: boolean;
@@ -40,6 +41,8 @@ export interface DocumentSessionState {
   setAssets: (assets: Map<string, UtsAsset>) => void;
   getAssetResolver: () => (assetRef: string) => string | undefined;
   setTraceBackgroundFile: (file: UtsTraceFile | null) => void;
+  syncTraceBackground: (template: TemplateAst) => void;
+  getActiveTraceFile: () => UtsTraceFile | null;
   getTraceBackgroundUrl: () => string | null;
   setUnsavedModalOpen: (open: boolean) => void;
   setPendingAction: (action: (() => Promise<void> | void) | null) => void;

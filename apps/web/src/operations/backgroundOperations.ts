@@ -97,3 +97,11 @@ export function toggleTraceBackgroundVisibility(): void {
   if (!current) return;
   useTemplateStore.getState().updateTraceBackground({ enabled: !current.enabled });
 }
+
+/**
+ * Sets the active page index for multi-page background references.
+ */
+export function setTraceBackgroundPageIndex(pageIndex: number): void {
+  const safeIndex = Math.max(0, Math.floor(pageIndex));
+  useTemplateStore.getState().updateTraceBackground({ pageIndex: safeIndex });
+}
