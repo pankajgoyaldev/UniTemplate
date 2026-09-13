@@ -34,6 +34,7 @@ import {
   importBackgroundImage,
   SUPPORTED_BACKGROUND_EXTENSIONS,
 } from '../../operations/backgroundOperations.js';
+import { TopBarFilename } from './TopBarFilename.js';
 
 export const TopBar: React.FC = () => {
   const zoom = useUIStore((s) => s.zoom);
@@ -56,8 +57,6 @@ export const TopBar: React.FC = () => {
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
   const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
 
-  const filename = useDocumentStore((s) => s.filename);
-  const isDirty = useDocumentStore((s) => s.isDirty);
   const isOperationInProgress = useDocumentStore((s) => s.isOperationInProgress);
 
   const recoveryMessage = useRecoveryStore((s) => s.recoveryMessage);
@@ -92,36 +91,24 @@ export const TopBar: React.FC = () => {
 
   return (
     <header className="h-12 w-full bg-studio-panel border-b border-studio-border flex items-center justify-between px-4 select-none z-30">
-      {/* Brand & Document Name + Dirty Indicator */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+      {/* Brand & Document Name Breadcrumb (Flexible, responsive with ellipsis) */}
+      <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-2.5 mr-2 sm:mr-3 overflow-hidden">
+        {/* Application Brand */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center font-bold text-xs text-white shadow-sm shrink-0">
             U
           </div>
-          <span className="font-semibold text-sm tracking-tight text-studio-text">
+          <span className="font-semibold text-sm tracking-tight text-studio-text whitespace-nowrap hidden sm:inline">
             UniTemplate
           </span>
         </div>
-        <span className="text-studio-muted text-xs">/</span>
-        <div
-          className="flex items-center gap-1.5 group cursor-default"
-          title={isDirty ? `${filename} (Unsaved changes)` : `${filename} (Saved)`}
-        >
-          <span className="text-xs font-mono font-medium text-studio-muted group-hover:text-studio-text transition-colors">
-            {filename}
-          </span>
-          {isDirty ? (
-            <span
-              className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"
-              title="Unsaved changes"
-            />
-          ) : (
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/60"
-              title="Saved"
-            />
-          )}
-        </div>
+
+        {/* Clean Breadcrumb Separator */}
+        <span className="text-studio-muted/60 text-xs shrink-0 select-none hidden sm:inline">/</span>
+
+        {/* Responsive Filename Dropdown & Details Popover */}
+        <TopBarFilename />
+      </div>
 
         {recoveryMessage && (
           <div
