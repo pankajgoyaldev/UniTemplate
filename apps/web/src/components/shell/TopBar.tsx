@@ -38,7 +38,13 @@ import {
 } from '../../operations/backgroundOperations.js';
 import { TopBarFilename } from './TopBarFilename.js';
 
-export const TopBar: React.FC = () => {
+export interface TopBarProps {
+  height?: number;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ height }) => {
+  const storeHeight = useUIStore((s) => s.topBarHeight);
+  const effectiveHeight = height ?? storeHeight ?? 48;
   const zoom = useUIStore((s) => s.zoom);
   const activeTool = useUIStore((s) => s.activeTool);
   const viewMode = useUIStore((s) => s.viewMode);
@@ -94,7 +100,10 @@ export const TopBar: React.FC = () => {
   const zoomPercent = Math.round(zoom * 100);
 
   return (
-    <header className="h-12 w-full bg-studio-panel border-b border-studio-border flex items-center justify-between px-4 select-none z-30">
+    <header
+      style={{ height: `${effectiveHeight}px` }}
+      className="w-full bg-studio-panel border-b border-studio-border flex items-center justify-between px-4 select-none z-30 overflow-hidden shrink-0"
+    >
       {/* Brand & Document Name Breadcrumb (Flexible, responsive with ellipsis) */}
       <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-2.5 mr-2 sm:mr-3 overflow-hidden">
         {/* Application Brand */}
@@ -112,14 +121,14 @@ export const TopBar: React.FC = () => {
 
         {/* Responsive Filename Dropdown & Details Popover */}
         <TopBarFilename />
-      </div>
 
+        {/* Optional Session Recovery Notification */}
         {recoveryMessage && (
           <div
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-sans bg-blue-900/30 text-blue-300 border border-blue-500/30"
+            className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-sans bg-blue-900/30 text-blue-300 border border-blue-500/30"
             title="Session was restored from local recovery storage"
           >
-            <span>{recoveryMessage}</span>
+            <span className="whitespace-nowrap">{recoveryMessage}</span>
             <button
               type="button"
               onClick={dismissRecoveryMessage}
@@ -133,8 +142,8 @@ export const TopBar: React.FC = () => {
         )}
       </div>
 
-      {/* Center Group: File Operations, Undo/Redo & Tool Selector */}
-      <div className="flex items-center gap-2">
+      {/* Toolbar Controls: Actions, Tools, Mode & Viewport (Never squished or overlapped) */}
+      <div className="flex items-center gap-2 xl:gap-2.5 shrink-0">
         {/* File Actions */}
         <div className="flex items-center bg-studio-bg border border-studio-border rounded-lg p-0.5">
           <button
@@ -315,11 +324,7 @@ export const TopBar: React.FC = () => {
             <span>Preview</span>
           </button>
         </div>
-      </div>
 
-
-      {/* Viewport & Zoom Controls */}
-      <div className="flex items-center gap-3">
         {/* Grid & Snap Controls */}
         <div className="flex items-center gap-1 bg-studio-bg border border-studio-border rounded-md px-1 py-0.5">
           <button

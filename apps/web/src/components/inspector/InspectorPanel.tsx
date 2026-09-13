@@ -14,7 +14,14 @@ import { VariablesSection } from './VariablesSection.js';
 import { DataSourceSection } from './DataSourceSection.js';
 import { PageSettingsSection } from './PageSettingsSection.js';
 
-export const InspectorPanel: React.FC = () => {
+export interface InspectorPanelProps {
+  width?: number;
+}
+
+export const InspectorPanel: React.FC<InspectorPanelProps> = ({ width }) => {
+  const storeWidth = useUIStore((s) => s.inspectorWidth);
+  const effectiveWidth = width ?? storeWidth ?? 320;
+
   const selectedElementIds = useUIStore((s) => s.selectedElementIds);
   const elements = useTemplateStore((s) => s.template.elements);
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
@@ -30,7 +37,10 @@ export const InspectorPanel: React.FC = () => {
   const selectionCount = selectedElements.length;
 
   return (
-    <aside className="w-80 shrink-0 bg-studio-panel border-l border-studio-border flex flex-col h-full overflow-y-auto select-none z-20">
+    <aside
+      style={{ width: effectiveWidth }}
+      className="shrink-0 bg-studio-panel border-l border-studio-border flex flex-col h-full overflow-y-auto select-none z-20"
+    >
       {/* 0 Selected State */}
       {selectionCount === 0 && (
         <div className="flex flex-col h-full divide-y divide-studio-border/60">

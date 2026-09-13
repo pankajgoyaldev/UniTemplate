@@ -32,7 +32,15 @@ interface UIState extends ViewportState {
   isVariablesModalOpen: boolean;
   isDataSourceModalOpen: boolean;
 
+  // Header, Sidebar & Layout State
+  toolboxWidth: number;
+  topBarHeight: number;
+  inspectorWidth: number;
+
   // Actions
+  setToolboxWidth: (width: number) => void;
+  setTopBarHeight: (height: number) => void;
+  setInspectorWidth: (width: number) => void;
   setViewMode: (mode: 'design' | 'preview') => void;
   toggleViewMode: () => void;
   setVariablesModalOpen: (open: boolean) => void;
@@ -87,6 +95,18 @@ export const useUIStore = create<UIState>((set, get) => ({
   viewMode: 'design',
   isVariablesModalOpen: false,
   isDataSourceModalOpen: false,
+
+  toolboxWidth: 72,
+  setToolboxWidth: (width) =>
+    set({ toolboxWidth: Math.max(72, Math.min(360, width)) }),
+
+  topBarHeight: 48,
+  setTopBarHeight: (height) =>
+    set({ topBarHeight: Math.max(48, Math.min(80, height)) }),
+
+  inspectorWidth: 320,
+  setInspectorWidth: (width) =>
+    set({ inspectorWidth: Math.max(220, Math.min(400, width)) }),
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleViewMode: () =>
@@ -190,3 +210,4 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setIsResizingElement: (resizing) => set({ isResizingElement: resizing }),
 }));
+
