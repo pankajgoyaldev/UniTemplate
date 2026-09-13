@@ -11,6 +11,7 @@ import { TypographySection } from './TypographySection.js';
 import { InspectorSection } from './InspectorSection.js';
 import { BackgroundSection } from './BackgroundSection.js';
 import { VariablesSection } from './VariablesSection.js';
+import { DataSourceSection } from './DataSourceSection.js';
 import { PageSettingsSection } from './PageSettingsSection.js';
 
 export const InspectorPanel: React.FC = () => {
@@ -34,6 +35,7 @@ export const InspectorPanel: React.FC = () => {
       {selectionCount === 0 && (
         <div className="flex flex-col h-full divide-y divide-studio-border/60">
           <VariablesSection />
+          <DataSourceSection />
           <BackgroundSection />
 
           <PageSettingsSection />

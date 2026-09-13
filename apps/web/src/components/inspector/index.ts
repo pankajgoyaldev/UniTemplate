@@ -9,5 +9,6 @@ export * from './ColorInput.js';
 export * from './BackgroundSection.js';
 export * from './VariablesManager.js';
 export * from './VariablesSection.js';
-
+export * from './DataSourceSection.js';
 export * from './PageSettingsSection.js';
+

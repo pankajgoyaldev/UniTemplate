@@ -30,11 +30,13 @@ interface UIState extends ViewportState {
   // View Mode & Dialogs
   viewMode: 'design' | 'preview';
   isVariablesModalOpen: boolean;
+  isDataSourceModalOpen: boolean;
 
   // Actions
   setViewMode: (mode: 'design' | 'preview') => void;
   toggleViewMode: () => void;
   setVariablesModalOpen: (open: boolean) => void;
+  setDataSourceModalOpen: (open: boolean) => void;
   setZoom: (zoom: number) => void;
   setPan: (panX: number, panY: number) => void;
   panBy: (deltaScreenPx: Point) => void;
@@ -84,6 +86,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   viewMode: 'design',
   isVariablesModalOpen: false,
+  isDataSourceModalOpen: false,
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleViewMode: () =>
@@ -91,6 +94,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       viewMode: state.viewMode === 'design' ? 'preview' : 'design',
     })),
   setVariablesModalOpen: (open) => set({ isVariablesModalOpen: open }),
+  setDataSourceModalOpen: (open) => set({ isDataSourceModalOpen: open }),
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
@@ -186,4 +190,3 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setIsResizingElement: (resizing) => set({ isResizingElement: resizing }),
 }));
-

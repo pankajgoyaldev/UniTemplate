@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { TopBar } from './components/shell/TopBar.js';
 import { StatusBar } from './components/shell/StatusBar.js';
 import { CanvasViewport } from './components/canvas/CanvasViewport.js';
@@ -9,11 +9,17 @@ import { useDocumentShortcuts } from './hooks/useDocumentShortcuts.js';
 import { useSessionRecovery } from './hooks/useSessionRecovery.js';
 import { UnsavedChangesModal } from './components/modals/UnsavedChangesModal.js';
 import { VariablesModal } from './components/modals/VariablesModal.js';
+import { DataSourceModal } from './components/modals/DataSourceModal.js';
+import { useDataSourceStore } from './store/dataSource/useDataSourceStore.js';
 
 export const App: React.FC = () => {
   useHistoryShortcuts();
   useDocumentShortcuts();
   useSessionRecovery();
+
+  useEffect(() => {
+    void useDataSourceStore.getState().hydrateFromStorage();
+  }, []);
 
   return (
     <div className="flex flex-col w-screen h-screen overflow-hidden bg-studio-bg text-studio-text">
@@ -35,9 +41,9 @@ export const App: React.FC = () => {
       {/* 4. Studio Modals */}
       <UnsavedChangesModal />
       <VariablesModal />
+      <DataSourceModal />
     </div>
   );
 };
 
 export default App;
-

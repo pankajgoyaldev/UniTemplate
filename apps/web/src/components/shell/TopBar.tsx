@@ -15,6 +15,7 @@ import {
   Download,
   Image as ImageIcon,
   Database,
+  Table as TableIcon,
   Eye,
   Pencil,
   X,
@@ -22,6 +23,7 @@ import {
 import { useRecoveryStore } from '../../store/recovery/useRecoveryStore.js';
 import { useUIStore } from '../../store/useUIStore.js';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { useDataSourceStore } from '../../store/dataSource/useDataSourceStore.js';
 import { useHistoryStore } from '../../store/history/useHistoryStore.js';
 import { useDocumentStore } from '../../store/document/useDocumentStore.js';
 import {
@@ -42,6 +44,7 @@ export const TopBar: React.FC = () => {
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const setVariablesModalOpen = useUIStore((s) => s.setVariablesModalOpen);
+  const setDataSourceModalOpen = useUIStore((s) => s.setDataSourceModalOpen);
   const gridVisible = useUIStore((s) => s.gridVisible);
   const gridSizeMm = useUIStore((s) => s.gridSizeMm);
   const snapToGrid = useUIStore((s) => s.snapToGrid);
@@ -56,6 +59,7 @@ export const TopBar: React.FC = () => {
 
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
   const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
+  const dataSource = useDataSourceStore((s) => s.dataSource);
 
   const isOperationInProgress = useDocumentStore((s) => s.isOperationInProgress);
 
@@ -200,6 +204,20 @@ export const TopBar: React.FC = () => {
             <span className="hidden xl:inline">Variables</span>
             <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
               {fields.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setDataSourceModalOpen(true)}
+            disabled={isOperationInProgress}
+            className="px-2 py-1 rounded text-xs flex items-center gap-1.5 text-studio-muted hover:text-studio-text hover:bg-studio-panel transition-colors disabled:opacity-40"
+            title="Import & Inspect Data Source (CSV / Excel)"
+            aria-label="Data Source"
+          >
+            <TableIcon className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden xl:inline">Data</span>
+            <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+              {dataSource ? `${dataSource.rowCount}` : '0'}
             </span>
           </button>
           <input
