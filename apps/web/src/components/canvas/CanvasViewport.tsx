@@ -5,6 +5,8 @@ import {
   calculatePositionSnappedDelta,
   calculateResizedBounds,
   calculateMultiElementMove,
+  calculateMultiElementResize,
+  calculateMultiElementBoundingBox,
   getElementWorldAnchor,
   normalizeWheelDelta,
   calculateWheelZoomFactor,
@@ -41,6 +43,7 @@ export const CanvasViewport: React.FC = () => {
   const setCursorPosMm = useUIStore((s) => s.setCursorPosMm);
   const fitToScreen = useUIStore((s) => s.fitToScreen);
   const selectElement = useUIStore((s) => s.selectElement);
+  const selectElements = useUIStore((s) => s.selectElements);
   const clearSelection = useUIStore((s) => s.clearSelection);
   const setActiveHandle = useUIStore((s) => s.setActiveHandle);
   const setIsDraggingElement = useUIStore((s) => s.setIsDraggingElement);
@@ -62,7 +65,7 @@ export const CanvasViewport: React.FC = () => {
   const assetResolver = useMemo(() => getAssetResolver(), [getAssetResolver, assets]);
   const traceBackgroundUrl = useMemo(
     () => getTraceBackgroundUrl(),
-    [getTraceBackgroundUrl, traceBackgroundFile],
+    [getTraceBackgroundUrl, traceBackgroundFile, traceBackground],
   );
 
   // Viewport panning state: tracked in refs with RAF batching for synchronous, 1:1, non-accelerating movement
@@ -84,6 +87,9 @@ export const CanvasViewport: React.FC = () => {
   const initialBoundsMap = useRef<Map<string, ElementBounds>>(new Map());
   const latestDragEventRef = useRef<{ clientX: number; clientY: number; altKey: boolean; ctrlKey: boolean } | null>(null);
   const dragRafIdRef = useRef<number | null>(null);
+  const pendingSingleSelectIdRef = useRef<string | null>(null);
+  const dragStartScreenPx = useRef<Point>({ x: 0, y: 0 });
+  const hasDraggedRef = useRef(false);
 
   // Resize state
   const isResizingElementRef = useRef(false);
@@ -150,11 +156,16 @@ export const CanvasViewport: React.FC = () => {
     };
   }, [setIsSpacePressed]);
 
-  // Keyboard shortcuts (Delete, Backspace, Arrow keys nudge, Escape)
+  // Keyboard shortcuts (Delete, Backspace, Arrow keys nudge, Escape, Select All)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable
+      ) {
         return;
       }
 
@@ -177,13 +188,26 @@ export const CanvasViewport: React.FC = () => {
           initialBoundsMap.current.clear();
           resizeInitialBounds.current = null;
           resizingElementId.current = null;
+          pendingSingleSelectIdRef.current = null;
+          hasDraggedRef.current = false;
           setIsDraggingElement(false);
           setIsResizingElement(false);
           setActiveHandle(null);
           useHistoryStore.getState().cancelHistoryTransaction();
           return;
         }
+        pendingSingleSelectIdRef.current = null;
+        hasDraggedRef.current = false;
         clearSelection();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        const selectableIds = elements
+          .filter((el) => el.isVisible && !el.isLocked)
+          .map((el) => el.id);
+        selectElements(selectableIds);
         return;
       }
 
@@ -229,7 +253,9 @@ export const CanvasViewport: React.FC = () => {
     };
   }, [
     selectedElementIds,
+    elements,
     deleteElements,
+    selectElements,
     clearSelection,
     nudgeElements,
     pageSettings.width,
@@ -307,6 +333,10 @@ export const CanvasViewport: React.FC = () => {
   const applyDragMove = useCallback((clientX: number, clientY: number, altKey: boolean, ctrlKey: boolean) => {
     if (!containerOriginRef.current || initialBoundsMap.current.size === 0) return;
 
+    // Movement actually occurred, clear pending single-select collapse
+    hasDraggedRef.current = true;
+    pendingSingleSelectIdRef.current = null;
+
     const { zoom: currentZoom, panX: currentPanX, panY: currentPanY, snapToGrid: currentSnap, gridSizeMm: currentGridSize } = useUIStore.getState();
     const { pageSettings: currentPageSettings } = useTemplateStore.getState().template;
 
@@ -371,11 +401,53 @@ export const CanvasViewport: React.FC = () => {
       ? calculatePositionSnappedDelta(referenceHandleMm, rawDeltaMm, currentGridSize)
       : rawDeltaMm;
 
+    if (resizingElementId.current === '__group__') {
+      const currentElements = useTemplateStore.getState().template.elements;
+      const elementsToResize = Array.from(initialBoundsMap.current.entries()).map(([id, initialBounds]) => {
+        const el = currentElements.find((e) => e.id === id);
+        return {
+          id,
+          initialBounds,
+          type: el?.type,
+        };
+      });
+
+      const anyRequiresAspectRatio = elementsToResize.some((item) => {
+        const el = currentElements.find((e) => e.id === item.id);
+        return (
+          (el?.type === 'image' && el.fit !== 'stretch') ||
+          (el?.type === 'barcode' && (el.barcodeType === 'qr' || el.barcodeType === 'datamatrix'))
+        );
+      });
+      const shouldKeepAspectRatio = shiftKey || anyRequiresAspectRatio;
+
+      const result = calculateMultiElementResize({
+        elements: elementsToResize,
+        initialGroupBounds: resizeInitialBounds.current,
+        handle: activeHandleRef.current,
+        deltaMm,
+        keepAspectRatio: shouldKeepAspectRatio,
+        minElementSizeMm: 2.0,
+        pageWidthMm: currentPageSettings.width,
+        pageHeightMm: currentPageSettings.height,
+      });
+
+      useTemplateStore.getState().updateMultipleElementBounds(result.elementBounds);
+      return;
+    }
+
+    const currentElements = useTemplateStore.getState().template.elements;
+    const targetEl = currentElements.find((el) => el.id === resizingElementId.current);
+    const requiresAspectRatio =
+      (targetEl?.type === 'image' && targetEl.fit !== 'stretch') ||
+      (targetEl?.type === 'barcode' && (targetEl.barcodeType === 'qr' || targetEl.barcodeType === 'datamatrix'));
+    const shouldKeepAspectRatio = shiftKey || !!requiresAspectRatio;
+
     const newBounds = calculateResizedBounds({
       initialBounds: resizeInitialBounds.current,
       handle: activeHandleRef.current,
       deltaMm,
-      keepAspectRatio: shiftKey,
+      keepAspectRatio: shouldKeepAspectRatio,
       pageWidthMm: currentPageSettings.width,
       pageHeightMm: currentPageSettings.height,
     });
@@ -402,6 +474,15 @@ export const CanvasViewport: React.FC = () => {
     initialBoundsMap.current.clear();
     setIsDraggingElement(false);
     useHistoryStore.getState().commitHistoryTransaction();
+
+    if (!hasDraggedRef.current && pendingSingleSelectIdRef.current !== null) {
+      const pendingId = pendingSingleSelectIdRef.current;
+      pendingSingleSelectIdRef.current = null;
+      useUIStore.getState().selectElement(pendingId, false);
+    } else {
+      pendingSingleSelectIdRef.current = null;
+    }
+    hasDraggedRef.current = false;
   }, [applyDragMove, setIsDraggingElement]);
 
   const stopResizingElement = useCallback(() => {
@@ -423,6 +504,7 @@ export const CanvasViewport: React.FC = () => {
     activeHandleRef.current = null;
     resizeInitialBounds.current = null;
     resizingElementId.current = null;
+    initialBoundsMap.current.clear();
     setIsResizingElement(false);
     setActiveHandle(null);
     useHistoryStore.getState().commitHistoryTransaction();
@@ -452,6 +534,36 @@ export const CanvasViewport: React.FC = () => {
       const screenY = e.clientY - containerOriginRef.current.y;
 
       const pointerMm = screenToCanvas({ x: screenX, y: screenY }, { zoom, panX, panY });
+
+      if (elementId === '__group__') {
+        const currentSelectedIds = useUIStore.getState().selectedElementIds;
+        const currentElements = useTemplateStore.getState().template.elements;
+        const selectedEls = currentElements.filter(
+          (el) => currentSelectedIds.includes(el.id) && el.isVisible && !el.isLocked,
+        );
+        if (selectedEls.length === 0) return;
+
+        const groupBbox = calculateMultiElementBoundingBox(selectedEls);
+        if (!groupBbox) return;
+
+        activeHandleRef.current = handle;
+        isResizingElementRef.current = true;
+        setActiveHandle(handle);
+        setIsResizingElement(true);
+        resizeStartPointerMm.current = pointerMm;
+        resizeInitialBounds.current = {
+          x: groupBbox.x,
+          y: groupBbox.y,
+          width: groupBbox.width,
+          height: groupBbox.height,
+          rotation: 0,
+        };
+        resizingElementId.current = '__group__';
+        initialBoundsMap.current = new Map(selectedEls.map((el) => [el.id, { ...el.bounds }]));
+        useHistoryStore.getState().beginHistoryTransaction();
+        return;
+      }
+
       const targetEl = elements.find((item) => item.id === elementId);
       if (!targetEl || targetEl.isLocked) return;
 
@@ -464,7 +576,7 @@ export const CanvasViewport: React.FC = () => {
       resizingElementId.current = elementId;
       useHistoryStore.getState().beginHistoryTransaction();
     },
-    [activeTool, isSpacePressed, zoom, panX, panY, elements, setActiveHandle, setIsResizingElement],
+    [activeTool, isSpacePressed, zoom, panX, panY, elements, selectedElementIds, setActiveHandle, setIsResizingElement],
   );
 
   // Canvas Mouse Down: Pan or Select / Drag-to-move
@@ -497,37 +609,77 @@ export const CanvasViewport: React.FC = () => {
         const screenX = e.clientX - containerOriginRef.current.x;
         const screenY = e.clientY - containerOriginRef.current.y;
 
+        const currentSelectedIds = useUIStore.getState().selectedElementIds;
+        const currentElements = useTemplateStore.getState().template.elements;
+
         const pointMm = screenToCanvas({ x: screenX, y: screenY }, { zoom, panX, panY });
-        const hit = hitTestElements(pointMm, elements, 1.0);
+        const hit = hitTestElements(pointMm, currentElements, 1.0);
+
+        dragStartScreenPx.current = { x: e.clientX, y: e.clientY };
+        hasDraggedRef.current = false;
 
         if (hit) {
           e.preventDefault();
-          const isMultiKey = e.shiftKey || e.ctrlKey || e.metaKey;
+          const isMultiToggle = e.ctrlKey || e.metaKey;
 
-          if (isMultiKey) {
+          if (isMultiToggle) {
+            pendingSingleSelectIdRef.current = null;
+            const isCurrentlySelected = currentSelectedIds.includes(hit.id);
             selectElement(hit.id, true);
-          } else {
-            // If already part of a multi-selection, keep group selected for moving
-            if (!selectedElementIds.includes(hit.id)) {
-              selectElement(hit.id, false);
+
+            if (!isCurrentlySelected) {
+              const newSelectedIds = [...currentSelectedIds, hit.id];
+              const map = new Map<string, ElementBounds>();
+              currentElements.forEach((el) => {
+                if (newSelectedIds.includes(el.id) && !el.isLocked && el.isVisible) {
+                  map.set(el.id, { ...el.bounds });
+                }
+              });
+              initialBoundsMap.current = map;
+              dragOriginPointerMm.current = pointMm;
+              isDraggingElementRef.current = true;
+              setIsDraggingElement(true);
+              useHistoryStore.getState().beginHistoryTransaction();
             }
-          }
-
-          // Prepare drag-to-move
-          const activeIds = isMultiKey
-            ? (selectedElementIds.includes(hit.id) ? selectedElementIds : [...selectedElementIds, hit.id])
-            : (selectedElementIds.includes(hit.id) ? selectedElementIds : [hit.id]);
-
-          const targets = elements.filter((el) => activeIds.includes(el.id) && !el.isLocked);
-          if (targets.length > 0) {
-            initialBoundsMap.current = new Map(targets.map((el) => [el.id, { ...el.bounds }]));
-            dragOriginPointerMm.current = pointMm;
-            isDraggingElementRef.current = true;
-            setIsDraggingElement(true);
-            useHistoryStore.getState().beginHistoryTransaction();
+          } else {
+            // Normal click or drag without Ctrl/Cmd
+            if (currentSelectedIds.includes(hit.id)) {
+              if (currentSelectedIds.length > 1) {
+                // Multi-selection exists: preserve group for potential drag
+                pendingSingleSelectIdRef.current = hit.id;
+                const map = new Map<string, ElementBounds>();
+                currentElements.forEach((el) => {
+                  if (currentSelectedIds.includes(el.id) && !el.isLocked && el.isVisible) {
+                    map.set(el.id, { ...el.bounds });
+                  }
+                });
+                initialBoundsMap.current = map;
+                dragOriginPointerMm.current = pointMm;
+                isDraggingElementRef.current = true;
+                setIsDraggingElement(true);
+                useHistoryStore.getState().beginHistoryTransaction();
+              } else {
+                pendingSingleSelectIdRef.current = null;
+                initialBoundsMap.current = new Map([[hit.id, { ...hit.bounds }]]);
+                dragOriginPointerMm.current = pointMm;
+                isDraggingElementRef.current = true;
+                setIsDraggingElement(true);
+                useHistoryStore.getState().beginHistoryTransaction();
+              }
+            } else {
+              // Clicked an unselected element: select only that element and prepare for drag
+              pendingSingleSelectIdRef.current = null;
+              selectElement(hit.id, false);
+              initialBoundsMap.current = new Map([[hit.id, { ...hit.bounds }]]);
+              dragOriginPointerMm.current = pointMm;
+              isDraggingElementRef.current = true;
+              setIsDraggingElement(true);
+              useHistoryStore.getState().beginHistoryTransaction();
+            }
           }
         } else {
           // Empty canvas click clears selection
+          pendingSingleSelectIdRef.current = null;
           clearSelection();
         }
       }
@@ -673,6 +825,15 @@ export const CanvasViewport: React.FC = () => {
         if (e.buttons === 0) {
           stopDraggingElement();
           return;
+        }
+
+        const dist = Math.hypot(
+          e.clientX - dragStartScreenPx.current.x,
+          e.clientY - dragStartScreenPx.current.y,
+        );
+        if (dist >= 3) {
+          hasDraggedRef.current = true;
+          pendingSingleSelectIdRef.current = null;
         }
 
         latestDragEventRef.current = {

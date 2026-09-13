@@ -33,7 +33,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
   const HANDLE_SIZE = 8; // Constant 8px screen size
 
-  // Multiple selected elements: render ONE combined group bounding box
+  // Multiple selected elements: render ONE combined group bounding box with 8 resize handles
   if (selectedElements.length > 1) {
     const groupBbox = calculateMultiElementBoundingBox(selectedElements);
     if (!groupBbox) return null;
@@ -42,6 +42,15 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     const yPx = mmToPx(groupBbox.y, DEFAULT_SCREEN_DPI) * zoom;
     const widthPx = mmToPx(groupBbox.width, DEFAULT_SCREEN_DPI) * zoom;
     const heightPx = mmToPx(groupBbox.height, DEFAULT_SCREEN_DPI) * zoom;
+
+    const groupBounds = {
+      x: groupBbox.x,
+      y: groupBbox.y,
+      width: groupBbox.width,
+      height: groupBbox.height,
+      rotation: 0,
+    };
+    const handles = calculateElementHandles(groupBounds);
 
     return (
       <g className="selection-overlay-layer">
@@ -57,6 +66,31 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
             strokeDasharray="4 3"
             pointerEvents="none"
           />
+
+          {handles.map((handle) => {
+            const hxPx = mmToPx(handle.positionMm.x, DEFAULT_SCREEN_DPI) * zoom;
+            const hyPx = mmToPx(handle.positionMm.y, DEFAULT_SCREEN_DPI) * zoom;
+
+            return (
+              <rect
+                key={`group-handle-${handle.type}`}
+                x={hxPx - HANDLE_SIZE / 2}
+                y={hyPx - HANDLE_SIZE / 2}
+                width={HANDLE_SIZE}
+                height={HANDLE_SIZE}
+                fill="#ffffff"
+                stroke="#2563eb"
+                strokeWidth="1.5"
+                rx={1}
+                className="transition-colors hover:fill-blue-500 hover:stroke-white"
+                style={{ cursor: handle.cursor }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onHandleMouseDown?.(e, handle.type, '__group__');
+                }}
+              />
+            );
+          })}
         </g>
       </g>
     );

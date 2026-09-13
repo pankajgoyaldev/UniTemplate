@@ -444,9 +444,11 @@ export const useTemplateStore = create<TemplateState>((set) => ({
 
   deleteElements: (ids) =>
     commitTemplateChange(set, (prev) => {
-      // Only delete unlocked elements
+      // Only delete unlocked and visible elements
       const targetIds = new Set(
-        prev.elements.filter((el) => ids.includes(el.id) && !el.isLocked).map((el) => el.id),
+        prev.elements
+          .filter((el) => ids.includes(el.id) && !el.isLocked && el.isVisible)
+          .map((el) => el.id),
       );
       if (targetIds.size === 0) {
         return prev;

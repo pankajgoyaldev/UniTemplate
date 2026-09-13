@@ -4,4 +4,5 @@ export * from './handles.js';
 export * from './transform.js';
 export * from './resize.js';
 export * from './alignment.js';
+export * from './multi-resize.js';
 

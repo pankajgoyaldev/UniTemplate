@@ -69,17 +69,22 @@ export function hitTestElements(
   elements: TemplateElement[],
   toleranceMm = 0,
 ): TemplateElement | null {
+  // Pair each element with its index to respect painter's rendering order when zIndex is equal
+  const indexed = elements.map((el, index) => ({ el, index }));
+
   // Filter selectable elements only: must be visible and not locked
-  const selectable = elements.filter((el) => el.isVisible && !el.isLocked);
+  const selectable = indexed.filter(({ el }) => el.isVisible && !el.isLocked);
 
-  // Sort by zIndex descending (higher zIndex on top)
-  const sorted = [...selectable].sort(
-    (a, b) => (Number(b.zIndex) || 0) - (Number(a.zIndex) || 0),
-  );
+  // Sort by zIndex descending (higher zIndex on top); if zIndex is equal, higher array index is rendered on top
+  const sorted = selectable.sort((a, b) => {
+    const zDiff = (Number(b.el.zIndex) || 0) - (Number(a.el.zIndex) || 0);
+    if (zDiff !== 0) return zDiff;
+    return b.index - a.index;
+  });
 
-  for (const element of sorted) {
-    if (isPointInElementBounds(pointMm, element.bounds, toleranceMm)) {
-      return element;
+  for (const { el } of sorted) {
+    if (isPointInElementBounds(pointMm, el.bounds, toleranceMm)) {
+      return el;
     }
   }
 

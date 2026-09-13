@@ -19,6 +19,7 @@ import {
   calculateMultiElementMove,
 } from '../src/manipulation/transform.js';
 import { calculateResizedBounds } from '../src/manipulation/resize.js';
+import { calculateMultiElementResize } from '../src/manipulation/multi-resize.js';
 import { screenToCanvas } from '../src/viewport/index.js';
 
 describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
@@ -173,6 +174,42 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
       const hit = hitTestElements({ x: 75, y: 55 }, elements);
       expect(hit).toBeDefined();
       expect(hit?.id).toBe('el_low');
+    });
+
+    it('respects array rendering order when overlapping elements have identical zIndex', () => {
+      const overlappingSameZ: TemplateElement[] = [
+        {
+          id: 'bottom_rect',
+          type: 'shape',
+          name: 'Bottom Rect',
+          bounds: { x: 10, y: 10, width: 50, height: 50, rotation: 0 },
+          isVisible: true,
+          isLocked: false,
+          zIndex: 0,
+          shapeType: 'rectangle',
+          fillColor: '#aaa',
+          strokeColor: '#000',
+          strokeWidthMm: 1,
+        },
+        {
+          id: 'top_rect',
+          type: 'shape',
+          name: 'Top Rect',
+          bounds: { x: 20, y: 20, width: 50, height: 50, rotation: 0 },
+          isVisible: true,
+          isLocked: false,
+          zIndex: 0,
+          shapeType: 'rectangle',
+          fillColor: '#bbb',
+          strokeColor: '#000',
+          strokeWidthMm: 1,
+        },
+      ];
+
+      // Point inside both bottom_rect and top_rect
+      const hit = hitTestElements({ x: 30, y: 30 }, overlappingSameZ);
+      expect(hit).toBeDefined();
+      expect(hit?.id).toBe('top_rect'); // Top element must receive click
     });
 
     it('empty canvas deselection: returns null when clicking on empty canvas', () => {
@@ -985,6 +1022,140 @@ describe('Manipulation Engine (Hit-Testing, Transforms & Handles)', () => {
         expect(currentDistX).toBeCloseTo(initialDistX, 10);
         expect(currentDistY).toBeCloseTo(initialDistY, 10);
       }
+    });
+  });
+
+  describe('12. Proportional Multi-Element Resize Engine', () => {
+    const elA: ElementBounds = { x: 20, y: 30, width: 40, height: 20, rotation: 0 };
+    const elB: ElementBounds = { x: 80, y: 70, width: 20, height: 30, rotation: 0 };
+    // Group bounding box: x: 20, y: 30, w: 80, h: 70 (spans x:[20, 100], y:[30, 100])
+    const initialGroup = { x: 20, y: 30, width: 80, height: 70 };
+
+    it('scales multiple elements proportionally relative to the common selection bounds via SE handle', () => {
+      // Expand width by +40mm (from 80 to 120 -> scale 1.5) and height by +35mm (from 70 to 105 -> scale 1.5)
+      const res = calculateMultiElementResize({
+        elements: [
+          { id: 'el_a', initialBounds: elA },
+          { id: 'el_b', initialBounds: elB },
+        ],
+        initialGroupBounds: initialGroup,
+        handle: 'se',
+        deltaMm: { x: 40, y: 35 },
+      });
+
+      expect(res.groupBounds.width).toBe(120);
+      expect(res.groupBounds.height).toBe(105);
+      expect(res.groupBounds.x).toBe(20);
+      expect(res.groupBounds.y).toBe(30);
+
+      const boundA = res.elementBounds.find((e) => e.id === 'el_a')!.bounds;
+      const boundB = res.elementBounds.find((e) => e.id === 'el_b')!.bounds;
+
+      // elA: relX = 0, relY = 0 -> newX = 20, newY = 30, w = 40 * 1.5 = 60, h = 20 * 1.5 = 30
+      expect(boundA.x).toBe(20);
+      expect(boundA.y).toBe(30);
+      expect(boundA.width).toBe(60);
+      expect(boundA.height).toBe(30);
+
+      // elB: relX = 60, relY = 40 -> newX = 20 + 60*1.5 = 110, newY = 30 + 40*1.5 = 90, w = 20*1.5 = 30, h = 30*1.5 = 45
+      expect(boundB.x).toBe(110);
+      expect(boundB.y).toBe(90);
+      expect(boundB.width).toBe(30);
+      expect(boundB.height).toBe(45);
+    });
+
+    it('resizes from NW handle keeping opposite SE anchor strictly fixed', () => {
+      // Drag NW handle by delta (-20, -10) -> group expands to x: 0, y: 20, w: 100, h: 80
+      const res = calculateMultiElementResize({
+        elements: [
+          { id: 'el_a', initialBounds: elA },
+          { id: 'el_b', initialBounds: elB },
+        ],
+        initialGroupBounds: initialGroup,
+        handle: 'nw',
+        deltaMm: { x: -20, y: -10 },
+      });
+
+      // Fixed SE corner: x = 20 + 80 = 100, y = 30 + 70 = 100
+      expect(res.groupBounds.x + res.groupBounds.width).toBe(100);
+      expect(res.groupBounds.y + res.groupBounds.height).toBe(100);
+      expect(res.groupBounds.x).toBe(0);
+      expect(res.groupBounds.y).toBe(20);
+    });
+
+    it('enforces minimum dimensions so that no individual member element shrinks below 2.0mm', () => {
+      // elA is 40x20, elB is 20x30.
+      // Smallest dimension is elA's height (20) and elB's width (20).
+      // If we attempt to shrink group by -100mm, minimum element size (2.0mm) must be preserved for both elements!
+      const res = calculateMultiElementResize({
+        elements: [
+          { id: 'el_a', initialBounds: elA },
+          { id: 'el_b', initialBounds: elB },
+        ],
+        initialGroupBounds: initialGroup,
+        handle: 'se',
+        deltaMm: { x: -100, y: -100 },
+        minElementSizeMm: 2.0,
+      });
+
+      for (const item of res.elementBounds) {
+        expect(item.bounds.width).toBeGreaterThanOrEqual(2.0);
+        expect(item.bounds.height).toBeGreaterThanOrEqual(2.0);
+      }
+    });
+
+    it('strictly clamps to page boundaries during multi-element resize', () => {
+      const pageWidth = 150;
+      const pageHeight = 150;
+
+      // Drag SE handle far past page right/bottom
+      const res = calculateMultiElementResize({
+        elements: [
+          { id: 'el_a', initialBounds: elA },
+          { id: 'el_b', initialBounds: elB },
+        ],
+        initialGroupBounds: initialGroup,
+        handle: 'se',
+        deltaMm: { x: 200, y: 200 },
+        pageWidthMm: pageWidth,
+        pageHeightMm: pageHeight,
+      });
+
+      expect(res.groupBounds.x + res.groupBounds.width).toBeLessThanOrEqual(pageWidth);
+      expect(res.groupBounds.y + res.groupBounds.height).toBeLessThanOrEqual(pageHeight);
+
+      for (const item of res.elementBounds) {
+        expect(item.bounds.x + item.bounds.width).toBeLessThanOrEqual(pageWidth + 1e-4);
+        expect(item.bounds.y + item.bounds.height).toBeLessThanOrEqual(pageHeight + 1e-4);
+      }
+    });
+
+    it('preserves aspect ratio when keepAspectRatio is true', () => {
+      const initialRatio = initialGroup.width / initialGroup.height;
+
+      const res = calculateMultiElementResize({
+        elements: [
+          { id: 'el_a', initialBounds: elA },
+          { id: 'el_b', initialBounds: elB },
+        ],
+        initialGroupBounds: initialGroup,
+        handle: 'se',
+        deltaMm: { x: 50, y: 10 },
+        keepAspectRatio: true,
+      });
+
+      const newRatio = res.groupBounds.width / res.groupBounds.height;
+      expect(newRatio).toBeCloseTo(initialRatio, 3);
+    });
+
+    it('handles empty elements gracefully', () => {
+      const res = calculateMultiElementResize({
+        elements: [],
+        initialGroupBounds: { x: 0, y: 0, width: 0, height: 0 },
+        handle: 'se',
+        deltaMm: { x: 10, y: 10 },
+      });
+      expect(res.elementBounds).toHaveLength(0);
     });
   });
 });
