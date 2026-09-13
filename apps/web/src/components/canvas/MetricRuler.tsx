@@ -124,7 +124,7 @@ export const VerticalRuler: React.FC<VerticalRulerProps> = ({
               {tick.label && (
                 <text
                   x="2"
-                  y="-3"
+                  y="1"
                   fill="#a1a1aa"
                   fontSize="9"
                   fontFamily="Inter, system-ui, sans-serif"
