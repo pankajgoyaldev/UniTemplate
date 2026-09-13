@@ -74,7 +74,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isDragging: false,
   gridVisible: true,
   gridSizeMm: 10,
-  snapToGrid: true,
+  snapToGrid: false,
   cursorPosMm: null,
 
   selectedElementIds: [],

@@ -51,6 +51,8 @@ export const ToolboxPanel: React.FC = () => {
   const panY = useUIStore((s) => s.panY);
   const viewportWidth = useUIStore((s) => s.viewportWidth);
   const viewportHeight = useUIStore((s) => s.viewportHeight);
+  const snapToGrid = useUIStore((s) => s.snapToGrid);
+  const gridSizeMm = useUIStore((s) => s.gridSizeMm);
 
   const handleInsert = (toolType: InsertableElementType) => {
     const newElement = createElementFromTemplate(toolType, {
@@ -63,6 +65,8 @@ export const ToolboxPanel: React.FC = () => {
         viewportHeight,
       },
       existingElements: elements,
+      snapToGrid,
+      gridSizeMm,
     });
 
     // 1. Add element to store (participates in history + dirty state + session recovery)

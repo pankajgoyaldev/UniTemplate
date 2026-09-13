@@ -32,11 +32,11 @@ export const StatusBar: React.FC = () => {
         {cursorPosMm ? (
           <div className="flex items-center gap-3 font-semibold">
             <span className={isInsidePage ? 'text-blue-400' : 'text-studio-muted'}>
-              X: {cursorPosMm.x.toFixed(1)} mm
+              X: {cursorPosMm.x.toFixed(2)} mm
             </span>
             <span className="text-studio-border">|</span>
             <span className={isInsidePage ? 'text-blue-400' : 'text-studio-muted'}>
-              Y: {cursorPosMm.y.toFixed(1)} mm
+              Y: {cursorPosMm.y.toFixed(2)} mm
             </span>
             {isInsidePage ? (
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/40 text-blue-300 font-sans">

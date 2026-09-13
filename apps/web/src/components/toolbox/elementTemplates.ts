@@ -1,10 +1,11 @@
-import type {
-  TemplateElement,
-  TextElement,
-  ShapeElement,
+import {
+  roundPrecision,
+  type TemplateElement,
+  type TextElement,
+  type ShapeElement,
   BarcodeElement,
-  ImageElement,
-  PageSettings,
+  type ImageElement,
+  type PageSettings,
 } from '@uts/core';
 import { screenToCanvas, type ViewportState } from '@uts/canvas-engine';
 
@@ -25,6 +26,8 @@ export interface PlacementOptions {
     'zoom' | 'panX' | 'panY' | 'viewportWidth' | 'viewportHeight'
   >;
   existingElements?: TemplateElement[];
+  snapToGrid?: boolean;
+  gridSizeMm?: number;
 }
 
 export const PLACEHOLDER_IMAGE_SVG =
@@ -46,7 +49,13 @@ export function calculateInitialBounds(
   height: number,
   options: PlacementOptions,
 ): { x: number; y: number; width: number; height: number; rotation: number } {
-  const { pageSettings, viewport, existingElements = [] } = options;
+  const {
+    pageSettings,
+    viewport,
+    existingElements = [],
+    snapToGrid = false,
+    gridSizeMm = 10,
+  } = options;
 
   let candidateX: number;
   let candidateY: number;
@@ -107,9 +116,16 @@ export function calculateInitialBounds(
     if (y + 5 <= maxY) y += 5;
   }
 
-  // Round to 1 decimal place for clean millimeter geometry
-  x = Math.round(x * 10) / 10;
-  y = Math.round(y * 10) / 10;
+  if (snapToGrid && gridSizeMm && gridSizeMm > 0) {
+    x = Math.round(x / gridSizeMm) * gridSizeMm;
+    y = Math.round(y / gridSizeMm) * gridSizeMm;
+    x = Math.max(minX, Math.min(maxX, x));
+    y = Math.max(minY, Math.min(maxY, y));
+  } else {
+    // Continuous sub-millimeter precision without forced rounding
+    x = roundPrecision(x, 3);
+    y = roundPrecision(y, 3);
+  }
 
   return {
     x,
