@@ -211,6 +211,33 @@ export const CanvasViewport: React.FC = () => {
         return;
       }
 
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        const currentSelected = useUIStore.getState().selectedElementIds;
+        if (currentSelected.length === 0) return;
+        const currentEls = useTemplateStore.getState().template.elements;
+        const selectedEls = currentEls.filter((el) => currentSelected.includes(el.id));
+        if (selectedEls.length === 0) return;
+
+        const anyLocked = selectedEls.some((el) => el.isLocked);
+        useHistoryStore.getState().beginHistoryTransaction();
+        useTemplateStore.getState().updateElements(currentSelected, { isLocked: !anyLocked });
+        useHistoryStore.getState().commitHistoryTransaction();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        const currentSelected = useUIStore.getState().selectedElementIds;
+        if (currentSelected.length === 0) return;
+        if (e.shiftKey) {
+          useTemplateStore.getState().ungroupElements(currentSelected);
+        } else if (currentSelected.length > 1) {
+          useTemplateStore.getState().groupElements(currentSelected);
+        }
+        return;
+      }
+
       if (selectedElementIds.length === 0) return;
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -613,7 +640,7 @@ export const CanvasViewport: React.FC = () => {
         const currentElements = useTemplateStore.getState().template.elements;
 
         const pointMm = screenToCanvas({ x: screenX, y: screenY }, { zoom, panX, panY });
-        const hit = hitTestElements(pointMm, currentElements, 1.0);
+        const hit = hitTestElements(pointMm, currentElements, 1.0, { includeLocked: true });
 
         dragStartScreenPx.current = { x: e.clientX, y: e.clientY };
         hasDraggedRef.current = false;
@@ -622,21 +649,35 @@ export const CanvasViewport: React.FC = () => {
           e.preventDefault();
           const isMultiToggle = e.ctrlKey || e.metaKey;
 
+          // Target elements: if hit belongs to a group, target all visible elements in that group
+          const targetIds = hit.groupId
+            ? currentElements
+                .filter((el) => el.groupId === hit.groupId && el.isVisible)
+                .map((el) => el.id)
+            : [hit.id];
+
+          const isTargetLocked = currentElements.some(
+            (el) => targetIds.includes(el.id) && el.isLocked,
+          );
+
           if (isMultiToggle) {
             pendingSingleSelectIdRef.current = null;
-            // Purge any locked elements so locked items are never mixed into multi-selection
-            const activeUnlockedIds = currentSelectedIds.filter((id) => {
-              const el = currentElements.find((e) => e.id === id);
-              return el && !el.isLocked && el.isVisible;
-            });
-            const isCurrentlySelected = activeUnlockedIds.includes(hit.id);
+            const isAnyAlreadySelected = targetIds.some((id) => currentSelectedIds.includes(id));
 
-            if (isCurrentlySelected) {
-              selectElements(activeUnlockedIds.filter((id) => id !== hit.id));
+            let newSelectedIds: string[];
+            if (isAnyAlreadySelected) {
+              newSelectedIds = currentSelectedIds.filter((id) => !targetIds.includes(id));
             } else {
-              const newSelectedIds = [...activeUnlockedIds, hit.id];
-              selectElements(newSelectedIds);
+              newSelectedIds = Array.from(new Set([...currentSelectedIds, ...targetIds]));
+            }
+            selectElements(newSelectedIds);
 
+            // Dragging: only permitted if ALL elements in newSelectedIds are unlocked
+            const anyLockedInSelection = currentElements.some(
+              (el) => newSelectedIds.includes(el.id) && el.isLocked,
+            );
+
+            if (!anyLockedInSelection && !isAnyAlreadySelected && newSelectedIds.length > 0) {
               const map = new Map<string, ElementBounds>();
               currentElements.forEach((el) => {
                 if (newSelectedIds.includes(el.id) && !el.isLocked && el.isVisible) {
@@ -648,22 +689,27 @@ export const CanvasViewport: React.FC = () => {
               isDraggingElementRef.current = true;
               setIsDraggingElement(true);
               useHistoryStore.getState().beginHistoryTransaction();
+            } else {
+              isDraggingElementRef.current = false;
+              setIsDraggingElement(false);
             }
           } else {
             // Normal click or drag without Ctrl/Cmd
-            // Purge any locked elements from selection context
-            const activeUnlockedIds = currentSelectedIds.filter((id) => {
-              const el = currentElements.find((e) => e.id === id);
-              return el && !el.isLocked && el.isVisible;
-            });
+            const isTargetAlreadySelected =
+              targetIds.length > 0 &&
+              targetIds.every((id) => currentSelectedIds.includes(id)) &&
+              currentSelectedIds.length === targetIds.length;
 
-            if (activeUnlockedIds.includes(hit.id)) {
-              if (activeUnlockedIds.length > 1) {
-                // Multi-selection exists among unlocked elements: preserve group for potential drag
-                pendingSingleSelectIdRef.current = hit.id;
+            if (isTargetAlreadySelected) {
+              if (!isTargetLocked) {
+                if (targetIds.length > 1) {
+                  pendingSingleSelectIdRef.current = hit.groupId ? null : hit.id;
+                } else {
+                  pendingSingleSelectIdRef.current = null;
+                }
                 const map = new Map<string, ElementBounds>();
                 currentElements.forEach((el) => {
-                  if (activeUnlockedIds.includes(el.id) && !el.isLocked && el.isVisible) {
+                  if (targetIds.includes(el.id) && !el.isLocked && el.isVisible) {
                     map.set(el.id, { ...el.bounds });
                   }
                 });
@@ -674,21 +720,30 @@ export const CanvasViewport: React.FC = () => {
                 useHistoryStore.getState().beginHistoryTransaction();
               } else {
                 pendingSingleSelectIdRef.current = null;
-                initialBoundsMap.current = new Map([[hit.id, { ...hit.bounds }]]);
+                isDraggingElementRef.current = false;
+                setIsDraggingElement(false);
+              }
+            } else {
+              // Clicked an unselected element or group: select targetIds
+              pendingSingleSelectIdRef.current = null;
+              selectElements(targetIds);
+
+              if (!isTargetLocked) {
+                const map = new Map<string, ElementBounds>();
+                currentElements.forEach((el) => {
+                  if (targetIds.includes(el.id) && !el.isLocked && el.isVisible) {
+                    map.set(el.id, { ...el.bounds });
+                  }
+                });
+                initialBoundsMap.current = map;
                 dragOriginPointerMm.current = pointMm;
                 isDraggingElementRef.current = true;
                 setIsDraggingElement(true);
                 useHistoryStore.getState().beginHistoryTransaction();
+              } else {
+                isDraggingElementRef.current = false;
+                setIsDraggingElement(false);
               }
-            } else {
-              // Clicked an unselected element: select only that element and prepare for drag
-              pendingSingleSelectIdRef.current = null;
-              selectElement(hit.id, false);
-              initialBoundsMap.current = new Map([[hit.id, { ...hit.bounds }]]);
-              dragOriginPointerMm.current = pointMm;
-              isDraggingElementRef.current = true;
-              setIsDraggingElement(true);
-              useHistoryStore.getState().beginHistoryTransaction();
             }
           }
         } else {

@@ -18,6 +18,7 @@ import {
   Table as TableIcon,
   Eye,
   Pencil,
+  Unlock,
   X,
 } from 'lucide-react';
 import { useRecoveryStore } from '../../store/recovery/useRecoveryStore.js';
@@ -68,6 +69,13 @@ export const TopBar: React.FC<TopBarProps> = ({ height }) => {
   const dataSource = useDataSourceStore((s) => s.dataSource);
 
   const isOperationInProgress = useDocumentStore((s) => s.isOperationInProgress);
+
+  const selectedElementIds = useUIStore((s) => s.selectedElementIds);
+  const elements = useTemplateStore((s) => s.template.elements);
+  const updateElements = useTemplateStore((s) => s.updateElements);
+
+  const selectedElements = elements.filter((el) => selectedElementIds.includes(el.id));
+  const isSelectedLocked = selectedElements.length > 0 && selectedElements.every((el) => el.isLocked);
 
   const recoveryMessage = useRecoveryStore((s) => s.recoveryMessage);
   const dismissRecoveryMessage = useRecoveryStore((s) => s.dismissRecoveryMessage);
@@ -262,6 +270,24 @@ export const TopBar: React.FC<TopBarProps> = ({ height }) => {
             <span className="hidden sm:inline">Redo</span>
           </button>
         </div>
+
+        {/* Quick Unlock Action when locked group/elements selected */}
+        {isSelectedLocked && (
+          <button
+            type="button"
+            onClick={() => {
+              useHistoryStore.getState().beginHistoryTransaction();
+              updateElements(selectedElementIds, { isLocked: false });
+              useHistoryStore.getState().commitHistoryTransaction();
+            }}
+            className="px-2.5 py-1 rounded text-xs flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors font-medium shadow-sm"
+            title="Unlock Group (Ctrl+L / Cmd+L)"
+            aria-label="Unlock Group"
+          >
+            <Unlock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Unlock Group</span>
+          </button>
+        )}
 
         {/* Tool Selector */}
         <div className="flex items-center bg-studio-bg border border-studio-border rounded-lg p-0.5">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Lock, Trash2, Layers, Sliders, EyeOff } from 'lucide-react';
+import { MousePointer, Lock, Unlock, Trash2, Layers, Sliders, EyeOff } from 'lucide-react';
 import { calculateMultiElementBoundingBox, calculateMultiElementMove, type ElementBounds } from '@uts/canvas-engine';
 import { useUIStore } from '../../store/useUIStore.js';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
@@ -27,6 +27,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({ width }) => {
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
 
   const updateElement = useTemplateStore((s) => s.updateElement);
+  const updateElements = useTemplateStore((s) => s.updateElements);
+  const groupElements = useTemplateStore((s) => s.groupElements);
+  const ungroupElements = useTemplateStore((s) => s.ungroupElements);
   const updateMultipleElementBounds = useTemplateStore((s) => s.updateMultipleElementBounds);
   const deleteElements = useTemplateStore((s) => s.deleteElements);
   const toggleElementLock = useTemplateStore((s) => s.toggleElementLock);
@@ -92,6 +95,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({ width }) => {
 
             const allLocked = selectedElements.every((e) => e.isLocked);
             const someLockedOrHidden = selectedElements.some((e) => e.isLocked || !e.isVisible);
+            const isGroup = selectedElements.length > 1 && selectedElements.every((e) => e.groupId && e.groupId === selectedElements[0].groupId);
 
             return (
               <div className="divide-y divide-studio-border/60">
@@ -272,27 +276,46 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({ width }) => {
                   </div>
                 </InspectorSection>
 
-                {/* Batch Lock & Visibility */}
+                {/* Batch Lock & Grouping Actions */}
                 <div className="p-3 space-y-2">
                   <div className="text-[10px] uppercase font-semibold text-studio-muted">
-                    Batch Actions
+                    {isGroup ? 'Group Actions' : 'Batch Actions'}
                   </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         useHistoryStore.getState().beginHistoryTransaction();
-                        selectedElements.forEach((el) => {
-                          if (allLocked ? el.isLocked : !el.isLocked) {
-                            toggleElementLock(el.id);
-                          }
-                        });
+                        const ids = selectedElements.map((el) => el.id);
+                        if (allLocked) {
+                          updateElements(ids, { isLocked: false });
+                        } else {
+                          updateElements(ids, { isLocked: true });
+                        }
                         useHistoryStore.getState().commitHistoryTransaction();
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-zinc-900 border border-studio-border text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+                      title={allLocked ? 'Unlock Group (Ctrl+L)' : 'Lock Group (Ctrl+L)'}
                     >
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>{allLocked ? 'Unlock All' : 'Lock All'}</span>
+                      {allLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5" />}
+                      <span>{allLocked ? 'Unlock Group' : 'Lock Group'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ids = selectedElements.map((el) => el.id);
+                        if (isGroup) {
+                          ungroupElements(ids);
+                        } else {
+                          groupElements(ids);
+                        }
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-zinc-900 border border-studio-border text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+                      title={isGroup ? 'Ungroup Elements (Ctrl+Shift+G)' : 'Group Elements (Ctrl+G)'}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>{isGroup ? 'Ungroup' : 'Group'}</span>
                     </button>
                   </div>
                 </div>

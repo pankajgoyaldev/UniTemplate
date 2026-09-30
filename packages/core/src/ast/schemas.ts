@@ -42,6 +42,7 @@ const baseElementProps = {
   isLocked: z.boolean().default(false),
   isVisible: z.boolean().default(true),
   zIndex: z.number().int().default(0),
+  groupId: z.string().optional(),
 };
 
 export const textElementSchema = z.object({

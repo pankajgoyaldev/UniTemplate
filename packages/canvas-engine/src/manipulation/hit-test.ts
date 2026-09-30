@@ -59,21 +59,29 @@ export function isPointInElementBounds(
   );
 }
 
+export interface HitTestOptions {
+  includeLocked?: boolean;
+}
+
 /**
  * Finds the topmost selectable element at a given physical millimeter coordinate.
- * Filters out invisible elements and locked elements, and evaluates by zIndex descending.
+ * Filters out invisible elements. When includeLocked is true, locked elements are also
+ * selectable in painter's order.
  * Does NOT mutate the input array or element objects.
  */
 export function hitTestElements(
   pointMm: Point,
   elements: TemplateElement[],
   toleranceMm = 0,
+  options?: HitTestOptions | boolean,
 ): TemplateElement | null {
+  const includeLocked = typeof options === 'boolean' ? options : (options?.includeLocked ?? false);
+
   // Pair each element with its index to respect painter's rendering order when zIndex is equal
   const indexed = elements.map((el, index) => ({ el, index }));
 
-  // Filter selectable elements only: must be visible and not locked
-  const selectable = indexed.filter(({ el }) => el.isVisible && !el.isLocked);
+  // Filter selectable elements only: must be visible, and exclude locked unless includeLocked is requested
+  const selectable = indexed.filter(({ el }) => el.isVisible && (includeLocked || !el.isLocked));
 
   // Sort by zIndex descending (higher zIndex on top); if zIndex is equal, higher array index is rendered on top
   const sorted = selectable.sort((a, b) => {

@@ -44,6 +44,7 @@ export interface BaseElement {
   isLocked: boolean;
   isVisible: boolean;
   zIndex: number;
+  groupId?: string;
 }
 
 export interface TextElement extends BaseElement {

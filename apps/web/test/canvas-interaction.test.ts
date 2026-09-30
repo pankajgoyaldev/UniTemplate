@@ -720,5 +720,232 @@ describe('Canvas Interaction: Selection, Dragging & Resizing', () => {
       expect(current.find((e) => e.id === 'el_d')?.isLocked).toBe(false);
     });
   });
+
+  describe('9. Locked Groups Selection Lifecycle and Persistent Group ID (Regression Tests)', () => {
+    // Test 1: Locked group -> deselect -> click member -> group selected
+    it('Test 1: locked group remains selectable after deselect: clicking any member selects the entire group', () => {
+      const elA: TemplateElement = {
+        ...initialElements[0],
+        id: 'grp_m1',
+        groupId: 'grp_locked_1',
+        bounds: { x: 20, y: 20, width: 30, height: 15, rotation: 0 },
+        isLocked: true,
+      };
+      const elB: TemplateElement = {
+        ...initialElements[1],
+        id: 'grp_m2',
+        groupId: 'grp_locked_1',
+        bounds: { x: 60, y: 20, width: 30, height: 15, rotation: 0 },
+        isLocked: true,
+      };
+      const elC: TemplateElement = {
+        ...initialElements[3],
+        id: 'grp_m3',
+        groupId: 'grp_locked_1',
+        bounds: { x: 100, y: 20, width: 30, height: 15, rotation: 0 },
+        isLocked: true,
+      };
+
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB, elC] },
+      }));
+
+      // 1. Group was previously selected
+      useUIStore.getState().selectElements([elA.id, elB.id, elC.id]);
+      expect(useUIStore.getState().selectedElementIds).toEqual(['grp_m1', 'grp_m2', 'grp_m3']);
+
+      // 2. Deselect (click empty canvas)
+      useUIStore.getState().clearSelection();
+      expect(useUIStore.getState().selectedElementIds).toHaveLength(0);
+
+      // 3. Click member B at (65, 25) with hit testing including locked elements
+      const elements = useTemplateStore.getState().template.elements;
+      const hit = hitTestElements({ x: 65, y: 25 }, elements, 1.0, { includeLocked: true });
+      expect(hit).toBeDefined();
+      expect(hit?.id).toBe('grp_m2');
+      expect(hit?.groupId).toBe('grp_locked_1');
+
+      // 4. Group resolution: find all members of the group and select them
+      const groupMemberIds = elements
+        .filter((el) => el.groupId === hit!.groupId && el.isVisible)
+        .map((el) => el.id);
+
+      useUIStore.getState().selectElements(groupMemberIds);
+
+      // 5. Entire group is now selected
+      expect(useUIStore.getState().selectedElementIds).toEqual(['grp_m1', 'grp_m2', 'grp_m3']);
+    });
+
+    // Test 2: Locked group -> refresh -> click member -> group selected
+    it('Test 2: locked group persists groupId across save/refresh and clicking member selects entire group', () => {
+      const elA: TemplateElement = {
+        ...initialElements[0],
+        id: 'pers_a',
+        groupId: 'persistent_group_42',
+        bounds: { x: 25, y: 30, width: 40, height: 20, rotation: 0 },
+        isLocked: true,
+      };
+      const elB: TemplateElement = {
+        ...initialElements[1],
+        id: 'pers_b',
+        groupId: 'persistent_group_42',
+        bounds: { x: 75, y: 30, width: 40, height: 20, rotation: 0 },
+        isLocked: true,
+      };
+
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB] },
+      }));
+
+      // Simulate Save / Serialize to JSON (e.g. .uts or session storage)
+      const currentTemplate = useTemplateStore.getState().template;
+      const serializedJson = JSON.stringify(currentTemplate);
+
+      // Simulate Refresh: reload from serialized JSON
+      const refreshedTemplate = JSON.parse(serializedJson);
+      useTemplateStore.getState().setTemplate(refreshedTemplate);
+      useUIStore.getState().clearSelection();
+
+      expect(useUIStore.getState().selectedElementIds).toHaveLength(0);
+
+      // Hit test on member B after refresh
+      const refreshedElements = useTemplateStore.getState().template.elements;
+      const hit = hitTestElements({ x: 80, y: 35 }, refreshedElements, 1.0, { includeLocked: true });
+      expect(hit).toBeDefined();
+      expect(hit?.id).toBe('pers_b');
+      expect(hit?.groupId).toBe('persistent_group_42');
+
+      // Rediscover group via persistent groupId
+      const groupMembers = refreshedElements
+        .filter((el) => el.groupId === hit!.groupId && el.isVisible)
+        .map((el) => el.id);
+
+      useUIStore.getState().selectElements(groupMembers);
+      expect(useUIStore.getState().selectedElementIds).toEqual(['pers_a', 'pers_b']);
+    });
+
+    // Test 3: Selected locked group -> Ctrl+L -> all members unlocked
+    it('Test 3: selected locked group unlocks all members on Ctrl+L shortcut action', () => {
+      const elA: TemplateElement = {
+        ...initialElements[0],
+        id: 'lock_a',
+        groupId: 'grp_toggle',
+        bounds: { x: 10, y: 10, width: 20, height: 10, rotation: 0 },
+        isLocked: true,
+      };
+      const elB: TemplateElement = {
+        ...initialElements[1],
+        id: 'lock_b',
+        groupId: 'grp_toggle',
+        bounds: { x: 35, y: 10, width: 20, height: 10, rotation: 0 },
+        isLocked: true,
+      };
+
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB] },
+      }));
+
+      // Select the locked group
+      useUIStore.getState().selectElements(['lock_a', 'lock_b']);
+      expect(useUIStore.getState().selectedElementIds).toEqual(['lock_a', 'lock_b']);
+
+      // Execute Ctrl+L toggle action
+      const selectedIds = useUIStore.getState().selectedElementIds;
+      const elements = useTemplateStore.getState().template.elements;
+      const anyLocked = elements.some((el) => selectedIds.includes(el.id) && el.isLocked);
+      expect(anyLocked).toBe(true);
+
+      // Unlock all members
+      useTemplateStore.getState().updateElements(selectedIds, { isLocked: !anyLocked });
+
+      const updated = useTemplateStore.getState().template.elements;
+      expect(updated.find((e) => e.id === 'lock_a')?.isLocked).toBe(false);
+      expect(updated.find((e) => e.id === 'lock_b')?.isLocked).toBe(false);
+
+      // Group can now move normally
+      const moved = calculateMultiElementMove(
+        [
+          { id: 'lock_a', initialBounds: elA.bounds },
+          { id: 'lock_b', initialBounds: elB.bounds },
+        ],
+        { x: 10, y: 10 },
+        210,
+        297,
+      );
+      useTemplateStore.getState().updateMultipleElementBounds(moved);
+      const afterMove = useTemplateStore.getState().template.elements;
+      expect(afterMove.find((e) => e.id === 'lock_a')?.bounds.x).toBe(20);
+      expect(afterMove.find((e) => e.id === 'lock_b')?.bounds.x).toBe(45);
+    });
+
+    // Test 4: Group A locked + Group B unlocked -> unlock A -> B unchanged
+    it('Test 4: Group A locked + Group B unlocked -> unlocking A leaves Group B unchanged', () => {
+      const a1: TemplateElement = { ...initialElements[0], id: 'a1', groupId: 'group_A', isLocked: true };
+      const a2: TemplateElement = { ...initialElements[1], id: 'a2', groupId: 'group_A', isLocked: true };
+      const b1: TemplateElement = { ...initialElements[2], id: 'b1', groupId: 'group_B', isLocked: false };
+      const b2: TemplateElement = { ...initialElements[3], id: 'b2', groupId: 'group_B', isLocked: false };
+
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [a1, a2, b1, b2] },
+      }));
+
+      // Select and unlock Group A
+      useUIStore.getState().selectElements(['a1', 'a2']);
+      useTemplateStore.getState().updateElements(['a1', 'a2'], { isLocked: false });
+
+      const afterUnlockA = useTemplateStore.getState().template.elements;
+      // Group A members are now unlocked
+      expect(afterUnlockA.find((e) => e.id === 'a1')?.isLocked).toBe(false);
+      expect(afterUnlockA.find((e) => e.id === 'a2')?.isLocked).toBe(false);
+
+      // Group B members remain unchanged (unlocked)
+      expect(afterUnlockA.find((e) => e.id === 'b1')?.isLocked).toBe(false);
+      expect(afterUnlockA.find((e) => e.id === 'b2')?.isLocked).toBe(false);
+
+      // If Group B was locked, unlocking Group A also leaves Group B locked
+      useTemplateStore.getState().updateElements(['b1', 'b2'], { isLocked: true });
+      useTemplateStore.getState().updateElements(['a1', 'a2'], { isLocked: false });
+      const afterCheck = useTemplateStore.getState().template.elements;
+      expect(afterCheck.find((e) => e.id === 'b1')?.isLocked).toBe(true);
+      expect(afterCheck.find((e) => e.id === 'b2')?.isLocked).toBe(true);
+    });
+
+    // Test 5: Locked Group -> create new element -> new element remains independent
+    it('Test 5: creating a new element after locked group keeps the new element independent and unlocked', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA: TemplateElement = { ...initialElements[0], id: 'g_a', groupId: 'lock_grp', isLocked: true };
+      const elB: TemplateElement = { ...initialElements[1], id: 'g_b', groupId: 'lock_grp', isLocked: true };
+
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB] },
+      }));
+
+      // Create new element D
+      const elD = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB] });
+      useTemplateStore.getState().addElement(elD);
+
+      // Select D
+      useUIStore.getState().selectElement(elD.id, false);
+
+      // Assert D is independent
+      const elements = useTemplateStore.getState().template.elements;
+      const foundD = elements.find((e) => e.id === elD.id);
+      expect(foundD).toBeDefined();
+      expect(foundD?.isLocked).toBe(false);
+      expect(foundD?.groupId).toBeUndefined();
+
+      // Only D is selected
+      expect(useUIStore.getState().selectedElementIds).toEqual([elD.id]);
+
+      // D can be moved while group remains locked
+      const movedD = calculateMovedBounds(foundD!.bounds, { x: 12, y: 18 }, 210, 297);
+      useTemplateStore.getState().updateElementBounds(elD.id, movedD);
+
+      const after = useTemplateStore.getState().template.elements;
+      expect(after.find((e) => e.id === elD.id)?.bounds.x).toBe(movedD.x);
+      expect(after.find((e) => e.id === 'g_a')?.isLocked).toBe(true);
+      expect(after.find((e) => e.id === 'g_b')?.isLocked).toBe(true);
+    });
+  });
 });
 

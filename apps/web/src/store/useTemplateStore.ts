@@ -24,6 +24,8 @@ interface TemplateState {
   nudgeElements: (ids: string[], deltaMm: Point, pageWidthMm: number, pageHeightMm: number) => void;
   toggleElementLock: (id: string) => void;
   toggleElementVisibility: (id: string) => void;
+  groupElements: (ids: string[], customGroupId?: string) => string;
+  ungroupElements: (idsOrGroupId: string | string[]) => void;
 }
 
 import { DEFAULT_A4_TEMPLATE } from './defaultTemplate.js';
@@ -436,12 +438,26 @@ export const useTemplateStore = create<TemplateState>((set) => ({
     }),
 
   toggleElementLock: (id) =>
-    commitTemplateChange(set, (prev) => ({
-      ...prev,
-      elements: prev.elements.map((el) =>
-        el.id === id ? { ...el, isLocked: !el.isLocked } : el,
-      ),
-    })),
+    commitTemplateChange(set, (prev) => {
+      const target = prev.elements.find((e) => e.id === id);
+      if (!target) return prev;
+      const targetGroupId = target.groupId;
+      if (targetGroupId) {
+        const newLock = !target.isLocked;
+        return {
+          ...prev,
+          elements: prev.elements.map((el) =>
+            el.groupId === targetGroupId ? { ...el, isLocked: newLock } : el,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        elements: prev.elements.map((el) =>
+          el.id === id ? { ...el, isLocked: !el.isLocked } : el,
+        ),
+      };
+    }),
 
   toggleElementVisibility: (id) =>
     commitTemplateChange(set, (prev) => ({
@@ -450,6 +466,41 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         el.id === id && !el.isLocked ? { ...el, isVisible: !el.isVisible } : el,
       ),
     })),
+
+  groupElements: (ids, customGroupId) => {
+    const generatedId =
+      customGroupId ||
+      `group_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    commitTemplateChange(set, (prev) => {
+      const idSet = new Set(ids);
+      return {
+        ...prev,
+        elements: prev.elements.map((el) =>
+          idSet.has(el.id) ? { ...el, groupId: generatedId } : el,
+        ),
+      };
+    });
+    return generatedId;
+  },
+
+  ungroupElements: (idsOrGroupId) =>
+    commitTemplateChange(set, (prev) => {
+      if (typeof idsOrGroupId === 'string') {
+        return {
+          ...prev,
+          elements: prev.elements.map((el) =>
+            el.groupId === idsOrGroupId ? { ...el, groupId: undefined } : el,
+          ),
+        };
+      }
+      const idSet = new Set(idsOrGroupId);
+      return {
+        ...prev,
+        elements: prev.elements.map((el) =>
+          idSet.has(el.id) ? { ...el, groupId: undefined } : el,
+        ),
+      };
+    }),
 
   deleteElements: (ids) =>
     commitTemplateChange(set, (prev) => {

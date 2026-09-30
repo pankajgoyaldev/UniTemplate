@@ -26,14 +26,15 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
   if (selectedElementIds.length === 0) return null;
 
   const selectedElements = elements.filter(
-    (el) => selectedElementIds.includes(el.id) && el.isVisible && !el.isLocked,
+    (el) => selectedElementIds.includes(el.id) && el.isVisible,
   );
 
   if (selectedElements.length === 0) return null;
 
+  const isAnyLocked = selectedElements.some((el) => el.isLocked);
   const HANDLE_SIZE = 8; // Constant 8px screen size
 
-  // Multiple selected elements: render ONE combined group bounding box with 8 resize handles
+  // Multiple selected elements: render ONE combined group bounding box
   if (selectedElements.length > 1) {
     const groupBbox = calculateMultiElementBoundingBox(selectedElements);
     if (!groupBbox) return null;
@@ -43,6 +44,9 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     const widthPx = mmToPx(groupBbox.width, DEFAULT_SCREEN_DPI) * zoom;
     const heightPx = mmToPx(groupBbox.height, DEFAULT_SCREEN_DPI) * zoom;
 
+    const strokeColor = isAnyLocked ? '#f59e0b' : '#2563eb';
+    const fillColor = isAnyLocked ? 'rgba(245, 158, 11, 0.05)' : 'rgba(37, 99, 235, 0.04)';
+
     const groupBounds = {
       x: groupBbox.x,
       y: groupBbox.y,
@@ -50,7 +54,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
       height: groupBbox.height,
       rotation: 0,
     };
-    const handles = calculateElementHandles(groupBounds);
+    const handles = isAnyLocked ? [] : calculateElementHandles(groupBounds);
 
     return (
       <g className="selection-overlay-layer">
@@ -60,8 +64,8 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
             y={yPx}
             width={widthPx}
             height={heightPx}
-            fill="rgba(37, 99, 235, 0.04)"
-            stroke="#2563eb"
+            fill={fillColor}
+            stroke={strokeColor}
             strokeWidth="1.5"
             strokeDasharray="4 3"
             pointerEvents="none"
@@ -98,6 +102,11 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
 
   // Single selected element: show its rotated selection bounding box and 8 resize handles
   const element = selectedElements[0];
+  const isElementLocked = element.isLocked;
+  const strokeColor = isElementLocked ? '#f59e0b' : '#2563eb';
+  const strokeDash = isElementLocked ? '4 3' : undefined;
+  const fillColor = isElementLocked ? 'rgba(245, 158, 11, 0.05)' : 'rgba(37, 99, 235, 0.04)';
+
   const { x, y, width, height, rotation = 0 } = element.bounds;
 
   const xPx = mmToPx(x, DEFAULT_SCREEN_DPI) * zoom;
@@ -113,7 +122,7 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
     ? `rotate(${rotation} ${cxPx} ${cyPx})`
     : undefined;
 
-  const handles = calculateElementHandles(element.bounds);
+  const handles = isElementLocked ? [] : calculateElementHandles(element.bounds);
 
   return (
     <g className="selection-overlay-layer">
@@ -124,9 +133,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
           y={yPx}
           width={widthPx}
           height={heightPx}
-          fill="rgba(37, 99, 235, 0.04)"
-          stroke="#2563eb"
+          fill={fillColor}
+          stroke={strokeColor}
           strokeWidth="1.5"
+          strokeDasharray={strokeDash}
           transform={outlineTransform}
           pointerEvents="none"
         />
