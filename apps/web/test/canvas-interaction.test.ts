@@ -11,6 +11,7 @@ import {
   calculateMultiElementBoundingBox,
 } from '@uts/canvas-engine';
 import { useHistoryStore } from '../src/store/history/useHistoryStore.js';
+import { createElementFromTemplate } from '../src/components/toolbox/elementTemplates.js';
 
 describe('Canvas Interaction: Selection, Dragging & Resizing', () => {
   const initialElements: TemplateElement[] = [
@@ -551,6 +552,172 @@ describe('Canvas Interaction: Selection, Dragging & Resizing', () => {
       // 3. Ctrl+click on B (el_rect_1) removes it from selection
       useUIStore.getState().selectElement('el_rect_1', true);
       expect(useUIStore.getState().selectedElementIds).toEqual(['el_text_1', 'el_circle_1']);
+    });
+  });
+
+  describe('8. Locked Groups and Newly Created Element Independence (Regression Tests)', () => {
+    // Scenario & Test 1: Create A, B, C -> Group A, B, C -> Lock group -> Create D
+    it('Test 1: newly created element D is independent, unlocked, selectable and movable after locking group (A, B, C)', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA = createElementFromTemplate('text', { pageSettings, existingElements: [] });
+      const elB = createElementFromTemplate('text', { pageSettings, existingElements: [elA] });
+      const elC = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB] });
+
+      useTemplateStore.setState((s) => ({
+        template: {
+          ...s.template,
+          elements: [elA, elB, elC],
+        },
+      }));
+
+      // Multi-select A, B, C as a group
+      useUIStore.getState().selectElements([elA.id, elB.id, elC.id]);
+      expect(useUIStore.getState().selectedElementIds).toEqual([elA.id, elB.id, elC.id]);
+
+      // Lock the group
+      useTemplateStore.getState().updateElements([elA.id, elB.id, elC.id], { isLocked: true });
+      const lockedElements = useTemplateStore.getState().template.elements;
+      expect(lockedElements.find((e) => e.id === elA.id)?.isLocked).toBe(true);
+      expect(lockedElements.find((e) => e.id === elB.id)?.isLocked).toBe(true);
+      expect(lockedElements.find((e) => e.id === elC.id)?.isLocked).toBe(true);
+
+      // Now create element D
+      const elD = createElementFromTemplate('text', { pageSettings, existingElements: lockedElements });
+      useTemplateStore.getState().addElement(elD);
+      useUIStore.getState().selectElement(elD.id, false);
+
+      // Assertions for Test 1:
+      // 1. D is an independent root-level element in template.elements
+      const allElements = useTemplateStore.getState().template.elements;
+      const foundD = allElements.find((e) => e.id === elD.id);
+      expect(foundD).toBeDefined();
+      expect(allElements).toHaveLength(4);
+
+      // 2. D is unlocked
+      expect(foundD?.isLocked).toBe(false);
+
+      // 3. D is selectable and selection does not contain the locked group
+      expect(useUIStore.getState().selectedElementIds).toEqual([elD.id]);
+
+      // 4. D can be moved while A, B, C remain locked at original positions
+      const movedD = calculateMovedBounds(foundD!.bounds, { x: 10, y: 15 }, 210, 297);
+      useTemplateStore.getState().updateElementBounds(elD.id, movedD);
+      const afterMove = useTemplateStore.getState().template.elements;
+      expect(afterMove.find((e) => e.id === elD.id)?.bounds.x).toBe(movedD.x);
+      expect(afterMove.find((e) => e.id === elA.id)?.isLocked).toBe(true);
+      expect(afterMove.find((e) => e.id === elB.id)?.isLocked).toBe(true);
+      expect(afterMove.find((e) => e.id === elC.id)?.isLocked).toBe(true);
+    });
+
+    // Test 2: Locked Group A, B, C -> Create D -> Create E
+    it('Test 2: multiple newly created elements (D, E) are independent root-level elements with distinct bounds', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA: TemplateElement = { ...initialElements[0], id: 'grp_a', isLocked: true };
+      const elB: TemplateElement = { ...initialElements[1], id: 'grp_b', isLocked: true };
+      const elC: TemplateElement = { ...initialElements[3], id: 'grp_c', isLocked: true };
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB, elC] },
+      }));
+
+      // Create D and E
+      const elD = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB, elC] });
+      useTemplateStore.getState().addElement(elD);
+
+      const elE = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB, elC, elD] });
+      useTemplateStore.getState().addElement(elE);
+
+      const current = useTemplateStore.getState().template.elements;
+      expect(current).toHaveLength(5);
+      expect(elD.isLocked).toBe(false);
+      expect(elE.isLocked).toBe(false);
+      // D and E must have distinct positions (no identical stacking)
+      expect(elD.bounds.x === elE.bounds.x && elD.bounds.y === elE.bounds.y).toBe(false);
+    });
+
+    // Test 3: Locked Group A, B, C -> Create D -> Select D
+    it('Test 3: selecting D selects only D and does not select the locked group', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA: TemplateElement = { ...initialElements[0], id: 'grp_a', isLocked: true };
+      const elB: TemplateElement = { ...initialElements[1], id: 'grp_b', isLocked: true };
+      const elC: TemplateElement = { ...initialElements[3], id: 'grp_c', isLocked: true };
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB, elC] },
+      }));
+
+      // Prior selection was on locked elements
+      useUIStore.getState().selectElements(['grp_a', 'grp_b', 'grp_c']);
+
+      // Create D and select D
+      const elD = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB, elC] });
+      useTemplateStore.getState().addElement(elD);
+      useUIStore.getState().selectElement(elD.id, false);
+
+      expect(useUIStore.getState().selectedElementIds).toEqual([elD.id]);
+      expect(useUIStore.getState().selectedElementIds).not.toContain('grp_a');
+      expect(useUIStore.getState().selectedElementIds).not.toContain('grp_b');
+      expect(useUIStore.getState().selectedElementIds).not.toContain('grp_c');
+    });
+
+    // Test 4: Locked Group A, B, C -> Create D -> Group D with another unlocked element
+    it('Test 4: grouping D with another unlocked element contains only explicitly selected elements', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA: TemplateElement = { ...initialElements[0], id: 'grp_a', isLocked: true };
+      const elB: TemplateElement = { ...initialElements[1], id: 'grp_b', isLocked: true };
+      const elC: TemplateElement = { ...initialElements[3], id: 'grp_c', isLocked: true };
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB, elC] },
+      }));
+
+      // Create D and E
+      const elD = createElementFromTemplate('text', { pageSettings, existingElements: [elA, elB, elC] });
+      const elE = createElementFromTemplate('rectangle', { pageSettings, existingElements: [elA, elB, elC, elD] });
+      useTemplateStore.getState().addElement(elD);
+      useTemplateStore.getState().addElement(elE);
+
+      // Multi-select D + E
+      useUIStore.getState().selectElements([elD.id, elE.id]);
+      expect(useUIStore.getState().selectedElementIds).toEqual([elD.id, elE.id]);
+
+      // Move group (D + E)
+      const moved = calculateMultiElementMove(
+        [
+          { id: elD.id, initialBounds: elD.bounds },
+          { id: elE.id, initialBounds: elE.bounds },
+        ],
+        { x: 5, y: 5 },
+        pageSettings.width,
+        pageSettings.height,
+      );
+      useTemplateStore.getState().updateMultipleElementBounds(moved);
+
+      // Verify only D and E moved, locked group A, B, C remain untouched
+      const current = useTemplateStore.getState().template.elements;
+      expect(current.find((e) => e.id === elD.id)?.bounds.x).toBe(elD.bounds.x + 5);
+      expect(current.find((e) => e.id === elE.id)?.bounds.x).toBe(elE.bounds.x + 5);
+      expect(current.find((e) => e.id === elA.id)?.bounds.x).toBe(elA.bounds.x);
+      expect(current.find((e) => e.id === elB.id)?.bounds.x).toBe(elB.bounds.x);
+      expect(current.find((e) => e.id === elC.id)?.bounds.x).toBe(elC.bounds.x);
+    });
+
+    // Test 5: Locked Group A, B, C -> Unlock group
+    it('Test 5: unlocking the group changes only that group lock state', () => {
+      const pageSettings = useTemplateStore.getState().template.pageSettings;
+      const elA: TemplateElement = { ...initialElements[0], id: 'grp_a', isLocked: true };
+      const elB: TemplateElement = { ...initialElements[1], id: 'grp_b', isLocked: true };
+      const elC: TemplateElement = { ...initialElements[3], id: 'grp_c', isLocked: true };
+      const elD: TemplateElement = { ...initialElements[0], id: 'el_d', isLocked: false };
+      useTemplateStore.setState((s) => ({
+        template: { ...s.template, elements: [elA, elB, elC, elD] },
+      }));
+
+      // Unlock group (A, B, C)
+      useTemplateStore.getState().updateElements(['grp_a', 'grp_b', 'grp_c'], { isLocked: false });
+
+      const current = useTemplateStore.getState().template.elements;
+      expect(current.find((e) => e.id === 'grp_a')?.isLocked).toBe(false);
+      expect(current.find((e) => e.id === 'grp_b')?.isLocked).toBe(false);
+      expect(current.find((e) => e.id === 'grp_c')?.isLocked).toBe(false);
+      expect(current.find((e) => e.id === 'el_d')?.isLocked).toBe(false);
     });
   });
 });

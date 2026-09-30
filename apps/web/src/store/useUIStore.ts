@@ -187,7 +187,12 @@ export const useUIStore = create<UIState>((set, get) => ({
         set({ selectedElementIds: [...current, id] });
       }
     } else {
-      set({ selectedElementIds: [id] });
+      set({
+        selectedElementIds: [id],
+        activeHandle: null,
+        isDraggingElement: false,
+        isResizingElement: false,
+      });
     }
   },
 

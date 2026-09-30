@@ -395,7 +395,16 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       return {
         ...prev,
         elements: prev.elements.map((el) => {
-          if (!idSet.has(el.id) || el.isLocked) return el;
+          if (!idSet.has(el.id)) return el;
+
+          // 1. Locked element protection: only unlocking is allowed
+          if (el.isLocked) {
+            if (patch.isLocked === false) {
+              return { ...el, isLocked: false };
+            }
+            return el;
+          }
+
           if (!el.isVisible && patch.isVisible !== true) return el;
           return patchElement(el, patch);
         }),

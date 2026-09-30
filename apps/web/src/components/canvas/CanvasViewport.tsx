@@ -624,11 +624,19 @@ export const CanvasViewport: React.FC = () => {
 
           if (isMultiToggle) {
             pendingSingleSelectIdRef.current = null;
-            const isCurrentlySelected = currentSelectedIds.includes(hit.id);
-            selectElement(hit.id, true);
+            // Purge any locked elements so locked items are never mixed into multi-selection
+            const activeUnlockedIds = currentSelectedIds.filter((id) => {
+              const el = currentElements.find((e) => e.id === id);
+              return el && !el.isLocked && el.isVisible;
+            });
+            const isCurrentlySelected = activeUnlockedIds.includes(hit.id);
 
-            if (!isCurrentlySelected) {
-              const newSelectedIds = [...currentSelectedIds, hit.id];
+            if (isCurrentlySelected) {
+              selectElements(activeUnlockedIds.filter((id) => id !== hit.id));
+            } else {
+              const newSelectedIds = [...activeUnlockedIds, hit.id];
+              selectElements(newSelectedIds);
+
               const map = new Map<string, ElementBounds>();
               currentElements.forEach((el) => {
                 if (newSelectedIds.includes(el.id) && !el.isLocked && el.isVisible) {
@@ -643,13 +651,19 @@ export const CanvasViewport: React.FC = () => {
             }
           } else {
             // Normal click or drag without Ctrl/Cmd
-            if (currentSelectedIds.includes(hit.id)) {
-              if (currentSelectedIds.length > 1) {
-                // Multi-selection exists: preserve group for potential drag
+            // Purge any locked elements from selection context
+            const activeUnlockedIds = currentSelectedIds.filter((id) => {
+              const el = currentElements.find((e) => e.id === id);
+              return el && !el.isLocked && el.isVisible;
+            });
+
+            if (activeUnlockedIds.includes(hit.id)) {
+              if (activeUnlockedIds.length > 1) {
+                // Multi-selection exists among unlocked elements: preserve group for potential drag
                 pendingSingleSelectIdRef.current = hit.id;
                 const map = new Map<string, ElementBounds>();
                 currentElements.forEach((el) => {
-                  if (currentSelectedIds.includes(el.id) && !el.isLocked && el.isVisible) {
+                  if (activeUnlockedIds.includes(el.id) && !el.isLocked && el.isVisible) {
                     map.set(el.id, { ...el.bounds });
                   }
                 });

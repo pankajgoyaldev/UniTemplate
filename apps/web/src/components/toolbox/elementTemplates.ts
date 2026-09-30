@@ -107,13 +107,21 @@ export function calculateInitialBounds(
   let x = Math.max(minX, Math.min(maxX, candidateX));
   let y = Math.max(minY, Math.min(maxY, candidateY));
 
-  // Stagger slightly if an existing element is already at this exact position
-  const isOccupied = existingElements.some(
-    (el) => Math.abs(el.bounds.x - x) < 2 && Math.abs(el.bounds.y - y) < 2,
-  );
-  if (isOccupied) {
-    if (x + 5 <= maxX) x += 5;
-    if (y + 5 <= maxY) y += 5;
+  // Stagger iteratively if an existing element is already occupying this position
+  let shiftCount = 0;
+  while (
+    shiftCount < 20 &&
+    existingElements.some(
+      (el) => Math.abs(el.bounds.x - x) < 2 && Math.abs(el.bounds.y - y) < 2,
+    )
+  ) {
+    if (x + 5 <= maxX && y + 5 <= maxY) {
+      x += 5;
+      y += 5;
+    } else {
+      break;
+    }
+    shiftCount++;
   }
 
   if (snapToGrid && gridSizeMm && gridSizeMm > 0) {
