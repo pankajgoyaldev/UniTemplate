@@ -29,6 +29,7 @@ export const DEFAULT_A4_TEMPLATE: TemplateAst = {
       invoiceNo: 'INV-2026-0042',
       totalAmount: 14500,
     },
+    columnMapping: {},
   },
   elements: [
     // 1. Company Logo (Image Element)

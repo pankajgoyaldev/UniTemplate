@@ -19,6 +19,7 @@ import { useTemplateStore } from '../../store/useTemplateStore.js';
 import { useHistoryStore } from '../../store/history/useHistoryStore.js';
 import { useDocumentStore } from '../../store/document/useDocumentStore.js';
 import { useDataSourceStore, getActiveRow } from '../../store/dataSource/useDataSourceStore.js';
+import { buildMappedPayload } from '../../operations/dataSource/index.js';
 import { HorizontalRuler, VerticalRuler, RulerCorner, RULER_THICKNESS } from './MetricRuler.js';
 import { PageCanvas } from './PageCanvas.js';
 
@@ -55,6 +56,8 @@ export const CanvasViewport: React.FC = () => {
   const elements = useTemplateStore((s) => s.template.elements);
   const traceBackground = useTemplateStore((s) => s.template.traceBackground);
   const mockPayload = useTemplateStore((s) => s.template.dataSchema?.mockPayload);
+  const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
+  const columnMapping = useTemplateStore((s) => s.template.dataSchema?.columnMapping || {});
   const deleteElements = useTemplateStore((s) => s.deleteElements);
   const nudgeElements = useTemplateStore((s) => s.nudgeElements);
 
@@ -73,16 +76,17 @@ export const CanvasViewport: React.FC = () => {
   const dataSource = useDataSourceStore((s) => s.dataSource);
   const activeRowIndex = useDataSourceStore((s) => s.activeRowIndex);
 
-  // Resolves active row payload when in preview mode, seamlessly falling back to mockPayload
+  // Resolves mapped variable payload when in preview mode, falling back to mockPayload
   const effectivePreviewPayload = useMemo(() => {
     if (viewMode === 'preview') {
       const activeRow = getActiveRow(dataSource, activeRowIndex);
       if (activeRow) {
-        return { ...(mockPayload || {}), ...activeRow };
+        const mappedPayload = buildMappedPayload(activeRow, fields, columnMapping);
+        return { ...(mockPayload || {}), ...mappedPayload };
       }
     }
     return mockPayload;
-  }, [viewMode, dataSource, activeRowIndex, mockPayload]);
+  }, [viewMode, dataSource, activeRowIndex, fields, columnMapping, mockPayload]);
 
   // Viewport panning state: tracked in refs with RAF batching for synchronous, 1:1, non-accelerating movement
   const panLastPointerRef = useRef<Point | null>(null);

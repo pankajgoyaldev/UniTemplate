@@ -15,6 +15,8 @@ interface TemplateState {
   addVariable: (field: DataField, sampleValue?: unknown) => void;
   updateVariable: (name: string, patch: Partial<DataField>, sampleValue?: unknown) => void;
   deleteVariable: (name: string) => void;
+  setColumnMapping: (mapping: Record<string, string>) => void;
+  updateColumnMapping: (variableName: string, sourceColumn: string | null) => void;
   addElement: (element: TemplateElement) => void;
   updateElement: (id: string, patch: Partial<TemplateElement>) => void;
   updateElements: (ids: string[], patch: Partial<TemplateElement>) => void;
@@ -264,6 +266,7 @@ export const useTemplateStore = create<TemplateState>((set) => ({
             ...(prev.dataSchema?.mockPayload || {}),
             [field.name]: parsedSample,
           },
+          columnMapping: prev.dataSchema?.columnMapping || {},
         },
       };
     }),
@@ -302,6 +305,12 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       }
       newMockPayload[newName] = parsedSample;
 
+      const newColumnMapping = { ...(prev.dataSchema?.columnMapping || {}) };
+      if (newName !== name && newColumnMapping[name]) {
+        newColumnMapping[newName] = newColumnMapping[name];
+        delete newColumnMapping[name];
+      }
+
       // Update elements bound to the renamed variable
       let updatedElements = prev.elements;
       if (newName !== name) {
@@ -321,6 +330,7 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         dataSchema: {
           fields: updatedFields,
           mockPayload: newMockPayload,
+          columnMapping: newColumnMapping,
         },
         elements: updatedElements,
       };
@@ -334,6 +344,9 @@ export const useTemplateStore = create<TemplateState>((set) => ({
       const updatedFields = fields.filter((f) => f.name !== name);
       const newMockPayload = { ...(prev.dataSchema?.mockPayload || {}) };
       delete newMockPayload[name];
+
+      const newColumnMapping = { ...(prev.dataSchema?.columnMapping || {}) };
+      delete newColumnMapping[name];
 
       // Unbind any element bound to the deleted variable
       const updatedElements = prev.elements.map((el) => {
@@ -350,8 +363,35 @@ export const useTemplateStore = create<TemplateState>((set) => ({
         dataSchema: {
           fields: updatedFields,
           mockPayload: newMockPayload,
+          columnMapping: newColumnMapping,
         },
         elements: updatedElements,
+      };
+    }),
+
+  setColumnMapping: (mapping) =>
+    commitTemplateChange(set, (prev) => ({
+      ...prev,
+      dataSchema: {
+        ...(prev.dataSchema || { fields: [], mockPayload: {} }),
+        columnMapping: mapping,
+      },
+    })),
+
+  updateColumnMapping: (variableName, sourceColumn) =>
+    commitTemplateChange(set, (prev) => {
+      const existing = { ...(prev.dataSchema?.columnMapping || {}) };
+      if (!sourceColumn || sourceColumn.trim().length === 0) {
+        delete existing[variableName];
+      } else {
+        existing[variableName] = sourceColumn;
+      }
+      return {
+        ...prev,
+        dataSchema: {
+          ...(prev.dataSchema || { fields: [], mockPayload: {} }),
+          columnMapping: existing,
+        },
       };
     }),
 

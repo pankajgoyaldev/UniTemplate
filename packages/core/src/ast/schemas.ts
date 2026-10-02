@@ -139,6 +139,7 @@ export const dataFieldSchema = z.object({
 export const dataSchemaSchema = z.object({
   fields: z.array(dataFieldSchema).default([]),
   mockPayload: z.record(z.unknown()).default({}),
+  columnMapping: z.record(z.string()).default({}),
 });
 
 export const templateMetadataSchema = z.object({
@@ -155,7 +156,7 @@ export const templateAstSchema = z.object({
   metadata: templateMetadataSchema,
   pageSettings: pageSettingsSchema,
   traceBackground: traceBackgroundSchema.optional(),
-  dataSchema: dataSchemaSchema.default({ fields: [], mockPayload: {} }),
+  dataSchema: dataSchemaSchema.default({ fields: [], mockPayload: {}, columnMapping: {} }),
   elements: z.array(templateElementSchema).default([]),
 });
 

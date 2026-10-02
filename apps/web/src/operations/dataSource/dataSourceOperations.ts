@@ -5,6 +5,8 @@ import {
 } from './dataSourceParser.js';
 import type { DataSourceParseResult } from './dataSourceTypes.js';
 import { useDataSourceStore } from '../../store/dataSource/useDataSourceStore.js';
+import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { autoMatchColumns } from './columnMapping.js';
 
 export const MAX_DATA_SOURCE_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
@@ -39,6 +41,14 @@ export async function importDataSourceFile(file: File): Promise<DataSourceParseR
 
     if (result.success && result.dataSource) {
       useDataSourceStore.getState().setDataSource(result.dataSource);
+
+      // Automatically match available columns to template variables
+      // Preserves valid existing mappings and flags missing columns as invalid
+      const template = useTemplateStore.getState().template;
+      const fields = template.dataSchema?.fields || [];
+      const existingMapping = template.dataSchema?.columnMapping || {};
+      const updatedMapping = autoMatchColumns(fields, result.dataSource.columns, existingMapping);
+      useTemplateStore.getState().setColumnMapping(updatedMapping);
     } else {
       useDataSourceStore.getState().setError(result.error || 'Failed to parse data source.');
     }

@@ -114,6 +114,7 @@ export interface DataField {
 export interface DataSchema {
   fields: DataField[];
   mockPayload: Record<string, unknown>;
+  columnMapping?: Record<string, string>;
 }
 
 export interface TemplateMetadata {
