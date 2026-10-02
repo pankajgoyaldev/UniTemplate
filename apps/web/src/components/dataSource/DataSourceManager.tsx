@@ -7,11 +7,14 @@ import {
   Loader2,
   RefreshCw,
   Table as TableIcon,
+  Download,
 } from 'lucide-react';
 import { useDataSourceStore } from '../../store/dataSource/useDataSourceStore.js';
+import { useTemplateStore } from '../../store/useTemplateStore.js';
 import {
   importDataSourceFile,
   removeDataSource,
+  downloadExcelTemplate,
   SUPPORTED_DATA_SOURCE_EXTENSIONS,
 } from '../../operations/dataSource/index.js';
 
@@ -22,6 +25,11 @@ export const DataSourceManager: React.FC = () => {
   const isLoading = useDataSourceStore((s) => s.isLoading);
   const error = useDataSourceStore((s) => s.error);
   const setError = useDataSourceStore((s) => s.setError);
+  const activeRowIndex = useDataSourceStore((s) => s.activeRowIndex);
+  const setActiveRowIndex = useDataSourceStore((s) => s.setActiveRowIndex);
+
+  const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
+  const templateTitle = useTemplateStore((s) => s.template.metadata?.title);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -114,14 +122,27 @@ export const DataSourceManager: React.FC = () => {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Import CSV / Excel</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shadow-sm"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import CSV / Excel</span>
+            </button>
+            {fields.length > 0 && (
+              <button
+                type="button"
+                onClick={() => downloadExcelTemplate(fields, templateTitle)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 text-zinc-200 text-xs font-medium transition-colors border border-zinc-700"
+                title="Download pre-formatted Excel template (.xlsx) containing all template variable headers"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Download Excel Template</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -184,7 +205,12 @@ export const DataSourceManager: React.FC = () => {
 
           {/* Table Preview Title & Status */}
           <div className="flex items-center justify-between text-xs px-0.5">
-            <span className="text-studio-muted font-medium">Dataset Preview</span>
+            <div className="flex items-center gap-2">
+              <span className="text-studio-muted font-medium">Dataset Preview</span>
+              <span className="text-[10px] text-blue-400/80 bg-blue-950/40 border border-blue-800/40 px-1.5 py-0.2 rounded">
+                Click row to preview
+              </span>
+            </div>
             <span className="text-[11px] text-zinc-500 font-mono">
               Showing first {Math.min(PREVIEW_MAX_ROWS, dataSource.rowCount)} of {dataSource.rowCount} rows
             </span>
@@ -210,40 +236,53 @@ export const DataSourceManager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900">
-                  {dataSource.rows.slice(0, PREVIEW_MAX_ROWS).map((row, rIdx) => (
-                    <tr
-                      key={rIdx}
-                      className={`hover:bg-zinc-900/80 transition-colors ${
-                        rIdx % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900/30'
-                      }`}
-                    >
-                      <td className="py-1.5 px-3 text-[10px] text-zinc-500 text-center select-none border-r border-studio-border/30">
-                        {rIdx + 1}
-                      </td>
-                      {dataSource.columns.map((col) => {
-                        const cellValue = row[col];
-                        const isNull = cellValue === null || cellValue === undefined || cellValue === '';
-                        const isNum = typeof cellValue === 'number';
+                  {dataSource.rows.slice(0, PREVIEW_MAX_ROWS).map((row, rIdx) => {
+                    const isActive = rIdx === activeRowIndex;
+                    return (
+                      <tr
+                        key={rIdx}
+                        onClick={() => setActiveRowIndex(rIdx)}
+                        className={`cursor-pointer transition-colors ${
+                          isActive
+                            ? 'bg-blue-950/60 text-blue-100 ring-1 ring-inset ring-blue-500/50'
+                            : rIdx % 2 === 0
+                            ? 'bg-zinc-950 hover:bg-zinc-900/80'
+                            : 'bg-zinc-900/30 hover:bg-zinc-900/80'
+                        }`}
+                        title={`Click to set record ${rIdx + 1} as active for preview`}
+                      >
+                        <td
+                          className={`py-1.5 px-3 text-[10px] text-center select-none border-r border-studio-border/30 font-medium ${
+                            isActive ? 'text-blue-400 font-bold' : 'text-zinc-500'
+                          }`}
+                        >
+                          {isActive ? `▶ ${rIdx + 1}` : rIdx + 1}
+                        </td>
+                        {dataSource.columns.map((col) => {
+                          const cellValue = row[col];
+                          const isNull = cellValue === null || cellValue === undefined || cellValue === '';
+                          const isNum = typeof cellValue === 'number';
 
-                        return (
-                          <td
-                            key={col}
-                            className={`py-1.5 px-3 whitespace-nowrap border-r border-studio-border/30 last:border-r-0 text-xs ${
-                              isNum ? 'text-right' : 'text-left'
-                            }`}
-                          >
-                            {isNull ? (
-                              <span className="text-zinc-600 select-none">—</span>
-                            ) : (
-                              <span className={isNum ? 'text-emerald-400' : 'text-zinc-300'}>
-                                {String(cellValue)}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                          return (
+                            <td
+                              key={col}
+                              className={`py-1.5 px-3 whitespace-nowrap border-r border-studio-border/30 last:border-r-0 text-xs ${
+                                isNum ? 'text-right' : 'text-left'
+                              }`}
+                            >
+                              {isNull ? (
+                                <span className="text-zinc-600 select-none">—</span>
+                              ) : (
+                                <span className={isActive ? 'text-white' : isNum ? 'text-emerald-400' : 'text-zinc-300'}>
+                                  {String(cellValue)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

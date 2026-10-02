@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, Check, Database } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Database, Download } from 'lucide-react';
 import type { DataField } from '@uts/core';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
+import { downloadExcelTemplate } from '../../operations/dataSource/index.js';
 import {
   validateVariableName,
   parseSampleValue,
@@ -15,6 +16,7 @@ interface VariablesManagerProps {
 export const VariablesManager: React.FC<VariablesManagerProps> = ({ onVariableSelect }) => {
   const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
   const mockPayload = useTemplateStore((s) => s.template.dataSchema?.mockPayload || {});
+  const templateTitle = useTemplateStore((s) => s.template.metadata?.title);
   const addVariable = useTemplateStore((s) => s.addVariable);
   const updateVariable = useTemplateStore((s) => s.updateVariable);
   const deleteVariable = useTemplateStore((s) => s.deleteVariable);
@@ -124,14 +126,31 @@ export const VariablesManager: React.FC<VariablesManagerProps> = ({ onVariableSe
           </span>
         </div>
         {!isAdding && !editingName && (
-          <button
-            type="button"
-            onClick={startAdd}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium transition-colors shadow-sm"
-          >
-            <Plus className="w-3 h-3" />
-            <span>Add Variable</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => downloadExcelTemplate(fields, templateTitle)}
+              disabled={fields.length === 0}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none text-zinc-300 hover:text-white text-[11px] font-medium transition-colors border border-zinc-700 shadow-sm"
+              title={
+                fields.length === 0
+                  ? 'Define at least one variable to download an Excel template'
+                  : 'Download Excel template (.xlsx) with variable column headers'
+              }
+              aria-label="Download Excel Template"
+            >
+              <Download className="w-3 h-3 text-emerald-400" />
+              <span>Excel Template</span>
+            </button>
+            <button
+              type="button"
+              onClick={startAdd}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium transition-colors shadow-sm"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Variable</span>
+            </button>
+          </div>
         )}
       </div>
 

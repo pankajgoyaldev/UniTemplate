@@ -18,6 +18,7 @@ import { useUIStore } from '../../store/useUIStore.js';
 import { useTemplateStore } from '../../store/useTemplateStore.js';
 import { useHistoryStore } from '../../store/history/useHistoryStore.js';
 import { useDocumentStore } from '../../store/document/useDocumentStore.js';
+import { useDataSourceStore, getActiveRow } from '../../store/dataSource/useDataSourceStore.js';
 import { HorizontalRuler, VerticalRuler, RulerCorner, RULER_THICKNESS } from './MetricRuler.js';
 import { PageCanvas } from './PageCanvas.js';
 
@@ -67,6 +68,21 @@ export const CanvasViewport: React.FC = () => {
     () => getTraceBackgroundUrl(),
     [getTraceBackgroundUrl, traceBackgroundFile, traceBackground],
   );
+
+  // Data Source Store (Active record preview)
+  const dataSource = useDataSourceStore((s) => s.dataSource);
+  const activeRowIndex = useDataSourceStore((s) => s.activeRowIndex);
+
+  // Resolves active row payload when in preview mode, seamlessly falling back to mockPayload
+  const effectivePreviewPayload = useMemo(() => {
+    if (viewMode === 'preview') {
+      const activeRow = getActiveRow(dataSource, activeRowIndex);
+      if (activeRow) {
+        return { ...(mockPayload || {}), ...activeRow };
+      }
+    }
+    return mockPayload;
+  }, [viewMode, dataSource, activeRowIndex, mockPayload]);
 
   // Viewport panning state: tracked in refs with RAF batching for synchronous, 1:1, non-accelerating movement
   const panLastPointerRef = useRef<Point | null>(null);
@@ -1042,7 +1058,7 @@ export const CanvasViewport: React.FC = () => {
           traceBackground={traceBackground}
           traceBackgroundUrl={traceBackgroundUrl}
           previewMode={viewMode === 'preview'}
-          mockPayload={mockPayload}
+          mockPayload={effectivePreviewPayload}
           onHandleMouseDown={handleResizeHandleMouseDown}
         />
       </div>

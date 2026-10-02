@@ -1,13 +1,16 @@
 import React from 'react';
-import { Table as TableIcon, Upload, ExternalLink, Trash2 } from 'lucide-react';
+import { Table as TableIcon, Upload, ExternalLink, Trash2, Download } from 'lucide-react';
 import { InspectorSection } from './InspectorSection.js';
 import { useDataSourceStore } from '../../store/dataSource/useDataSourceStore.js';
+import { useTemplateStore } from '../../store/useTemplateStore.js';
 import { useUIStore } from '../../store/useUIStore.js';
-import { removeDataSource } from '../../operations/dataSource/index.js';
+import { removeDataSource, downloadExcelTemplate } from '../../operations/dataSource/index.js';
 
 export const DataSourceSection: React.FC = () => {
   const dataSource = useDataSourceStore((s) => s.dataSource);
   const setDataSourceModalOpen = useUIStore((s) => s.setDataSourceModalOpen);
+  const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
+  const templateTitle = useTemplateStore((s) => s.template.metadata?.title);
 
   const badgeText = dataSource ? `${dataSource.rowCount} rows` : undefined;
 
@@ -30,17 +33,30 @@ export const DataSourceSection: React.FC = () => {
             <div className="flex justify-center mb-1.5 text-studio-muted">
               <TableIcon className="w-4 h-4 text-emerald-400" />
             </div>
-            <p className="text-[11px] text-zinc-400 mb-2">
+            <p className="text-[11px] text-zinc-400 mb-2.5">
               No spreadsheet imported for batch generation.
             </p>
-            <button
-              type="button"
-              onClick={() => setDataSourceModalOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-studio-border text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-            >
-              <Upload className="w-3 h-3" />
-              <span>Import CSV / Excel</span>
-            </button>
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDataSourceModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-studio-border text-xs text-emerald-400 hover:text-emerald-300 transition-colors shadow-sm"
+              >
+                <Upload className="w-3 h-3" />
+                <span>Import CSV / Excel</span>
+              </button>
+              {fields.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadExcelTemplate(fields, templateTitle)}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded bg-zinc-900/60 hover:bg-zinc-800 border border-studio-border/60 text-[11px] text-zinc-300 hover:text-white transition-colors"
+                  title="Download Excel template (.xlsx) with variable headers"
+                >
+                  <Download className="w-3 h-3 text-emerald-400" />
+                  <span>Download Excel Template</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="p-2.5 rounded-lg bg-zinc-900/70 border border-studio-border space-y-2">
@@ -70,14 +86,28 @@ export const DataSourceSection: React.FC = () => {
                 <ExternalLink className="w-3 h-3" />
                 <span>View Data Table</span>
               </button>
-              <button
-                type="button"
-                onClick={handleRemove}
-                className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/40 transition-colors"
-                title="Remove Data Source"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
+              <div className="flex items-center gap-1">
+                {fields.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => downloadExcelTemplate(fields, templateTitle)}
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                    title="Download Excel Template (.xlsx)"
+                    aria-label="Download Excel Template"
+                  >
+                    <Download className="w-3 h-3 text-emerald-400" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/40 transition-colors"
+                  title="Remove Data Source"
+                  aria-label="Remove Data Source"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           </div>
         )}

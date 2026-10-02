@@ -19,6 +19,8 @@ import {
   Eye,
   Pencil,
   Unlock,
+  ChevronLeft,
+  ChevronRight,
   X,
 } from 'lucide-react';
 import { useRecoveryStore } from '../../store/recovery/useRecoveryStore.js';
@@ -67,6 +69,9 @@ export const TopBar: React.FC<TopBarProps> = ({ height }) => {
   const pageSettings = useTemplateStore((s) => s.template.pageSettings);
   const fields = useTemplateStore((s) => s.template.dataSchema?.fields || []);
   const dataSource = useDataSourceStore((s) => s.dataSource);
+  const activeRowIndex = useDataSourceStore((s) => s.activeRowIndex);
+  const nextRow = useDataSourceStore((s) => s.nextRow);
+  const prevRow = useDataSourceStore((s) => s.prevRow);
 
   const isOperationInProgress = useDocumentStore((s) => s.isOperationInProgress);
 
@@ -343,13 +348,42 @@ export const TopBar: React.FC<TopBarProps> = ({ height }) => {
                 ? 'bg-emerald-600 text-white font-medium shadow-sm'
                 : 'text-studio-muted hover:text-studio-text hover:bg-studio-panel'
             }`}
-            title="Preview View (Renders live sample data from mock payload)"
+            title="Preview View (Renders live sample data from active dataset row or mock payload)"
             aria-label="Preview View"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Preview</span>
           </button>
         </div>
+
+        {/* Record Navigator (Active in Preview mode when Data Source has records) */}
+        {viewMode === 'preview' && dataSource && dataSource.rowCount > 0 && (
+          <div className="flex items-center bg-studio-bg border border-studio-border rounded-lg p-0.5 text-xs text-studio-text">
+            <button
+              type="button"
+              onClick={prevRow}
+              disabled={activeRowIndex <= 0}
+              className="p-1 rounded hover:bg-studio-panel text-studio-muted hover:text-studio-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title="Previous Record"
+              aria-label="Previous Record"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="px-2 font-mono text-[11px] select-none text-zinc-300">
+              Record {activeRowIndex + 1} / {dataSource.rowCount}
+            </span>
+            <button
+              type="button"
+              onClick={nextRow}
+              disabled={activeRowIndex >= dataSource.rowCount - 1}
+              className="p-1 rounded hover:bg-studio-panel text-studio-muted hover:text-studio-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title="Next Record"
+              aria-label="Next Record"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Grid & Snap Controls */}
         <div className="flex items-center gap-1 bg-studio-bg border border-studio-border rounded-md px-1 py-0.5">
